@@ -1,3 +1,13 @@
 <resources>
     <string name="app_name">Skyglass</string>
+
+    <string name="status_no_rotation_sensor">This device has no rotation vector sensor, so Skyglass can’t tell where it’s pointing.</string>
+    <string name="status_location_permission">Skyglass needs your location to work out which stars are overhead.</string>
+    <string name="status_loading_stars">Loading stars…</string>
+    <string name="status_location_disabled">Location is turned off. Turn it on in system settings to see the sky.</string>
+    <string name="status_waiting_for_location">Waiting for location…</string>
+    <string name="status_calibrate_compass">Compass accuracy is low. Move your phone in a figure-8 to calibrate it.</string>
+    <string name="status_info">Stars: %1$d · %2$.2f°, %3$.2f° · declination %4$+.1f°</string>
+
+    <string name="action_grant_location">Allow location</string>
 </resources>

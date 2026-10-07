@@ -9,5 +9,8 @@
     <string name="status_calibrate_compass">Compass accuracy is low. Move your phone in a figure-8 to calibrate it.</string>
     <string name="status_info">Stars: %1$d · %2$.2f°, %3$.2f° · declination %4$+.1f°</string>
 
+    <string name="star_magnitude">Magnitude %1$.2f</string>
+    <string name="star_hr">HR %1$d</string>
+
     <string name="action_grant_location">Allow location</string>
 </resources>

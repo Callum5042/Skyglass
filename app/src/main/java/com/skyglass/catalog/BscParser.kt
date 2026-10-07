@@ -38,6 +38,12 @@ object BscParser {
             bv = record.double(110, 114),
             pmRaArcsecPerYear = record.double(149, 154) ?: 0.0,
             pmDecArcsecPerYear = record.double(155, 160) ?: 0.0,
+            // Columns 5-14 hold the name: Flamsteed number (5-7), Bayer letter (8-10) with its
+            // superscript digit (11), then the constellation abbreviation (12-14).
+            flamsteed = record.int(5, 7),
+            bayer = record.field(8, 10).ifEmpty { null },
+            bayerIndex = record.field(11, 11).firstOrNull(),
+            constellation = record.field(12, 14).ifEmpty { null },
         )
     }
 

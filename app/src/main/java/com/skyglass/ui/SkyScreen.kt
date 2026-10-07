@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -47,6 +48,7 @@ private val StatusTextColor = Color(0xFF8A8A8A)
 @Composable
 fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val density = LocalDensity.current.density
     var hasLocationPermission by remember { mutableStateOf(viewModel.hasLocationPermission()) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -69,6 +71,22 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         SkyGlView(viewModel, Modifier.fillMaxSize())
+        SkyOverlay(
+            renderInputs = viewModel.renderInputs,
+            labels = state.constellationLabels,
+            selectedStar = state.selectedStar,
+            onTap = { x, y, width, height -> viewModel.onSkyTapped(x, y, width, height, density) },
+            modifier = Modifier.fillMaxSize(),
+        )
+        state.selectedStar?.let { selected ->
+            StarInfoCard(
+                description = selected.description,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .safeDrawingPadding()
+                    .padding(16.dp),
+            )
+        }
         StatusOverlay(
             state = state,
             hasLocationPermission = hasLocationPermission,

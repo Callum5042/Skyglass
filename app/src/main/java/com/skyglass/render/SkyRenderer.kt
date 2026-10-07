@@ -3,6 +3,7 @@ package com.skyglass.render
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import com.skyglass.astro.AstroTime
+import com.skyglass.catalog.ConstellationSky
 import com.skyglass.catalog.StarVertices
 import com.skyglass.math.Quaternion
 import com.skyglass.sensors.OrientationFilter
@@ -12,8 +13,8 @@ import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
 
 /**
- * Draws the star field. All star vectors live in a static VBO in the equatorial frame of date;
- * each frame only the MVP matrix changes, built by [SkyViewMath].
+ * Draws the constellation lines and the star field. All vectors live in static VBOs in the
+ * equatorial frame of date; each frame only the MVP matrix changes, built by [SkyViewMath].
  *
  * @param orientation latest raw device→magnetic-ENU rotation; smoothed here, once per frame
  * @param displayRotation current `Surface.ROTATION_*` value
@@ -38,6 +39,13 @@ class SkyRenderer(
     private var uploadedVertices: FloatArray? = null
     private var starCount = 0
 
+    private lateinit var lineProgram: ShaderProgram
+    private var uLineMvp = -1
+    private var uLineColor = -1
+    private var lineVbo = 0
+    private var uploadedLines: FloatArray? = null
+    private var lineVertexCount = 0
+
     private var aspect = 1.0
     private var maxPointSize = 64f
     private var lastFrameNanos = 0L
@@ -53,11 +61,17 @@ class SkyRenderer(
         uPointScale = program.uniformLocation("uPointScale")
         uMaxPointSize = program.uniformLocation("uMaxPointSize")
 
-        val ids = IntArray(1)
-        GLES30.glGenBuffers(1, ids, 0)
+        lineProgram = ShaderProgram(LineShaders.VERTEX, LineShaders.FRAGMENT)
+        uLineMvp = lineProgram.uniformLocation("uMvp")
+        uLineColor = lineProgram.uniformLocation("uColor")
+
+        val ids = IntArray(2)
+        GLES30.glGenBuffers(2, ids, 0)
         vbo = ids[0]
-        // A new context has an empty buffer, even if the data was uploaded to a previous one.
+        lineVbo = ids[1]
+        // A new context has empty buffers, even if the data was uploaded to a previous one.
         uploadedVertices = null
+        uploadedLines = null
 
         val range = FloatArray(2)
         GLES30.glGetFloatv(GLES30.GL_ALIASED_POINT_SIZE_RANGE, range, 0)
@@ -99,8 +113,17 @@ class SkyRenderer(
             aspect = aspect,
         )
 
+        inputs.lastMvp = mvp
+        mvp.toColumnMajorFloatArray(mvpFloats)
+
+        // Lines first, so stars are drawn over them.
+        inputs.constellationLines?.let { lines ->
+            if (lines !== uploadedLines) uploadLines(lines)
+            drawLines()
+        }
+
         program.use()
-        GLES30.glUniformMatrix4fv(uMvp, 1, false, mvp.toColumnMajorFloatArray(mvpFloats), 0)
+        GLES30.glUniformMatrix4fv(uMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uPointScale, pointScale)
         GLES30.glUniform1f(uMaxPointSize, maxPointSize)
 
@@ -111,14 +134,35 @@ class SkyRenderer(
         GLES30.glDrawArrays(GLES30.GL_POINTS, 0, starCount)
     }
 
+    private fun drawLines() {
+        if (lineVertexCount == 0) return
+        lineProgram.use()
+        GLES30.glUniformMatrix4fv(uLineMvp, 1, false, mvpFloats, 0)
+        GLES30.glUniform3f(uLineColor, LineShaders.LINE_RED, LineShaders.LINE_GREEN, LineShaders.LINE_BLUE)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, lineVbo)
+        GLES30.glEnableVertexAttribArray(LineShaders.ATTRIB_POSITION)
+        GLES30.glVertexAttribPointer(
+            LineShaders.ATTRIB_POSITION, ConstellationSky.FLOATS_PER_VERTEX, GLES30.GL_FLOAT, false, 0, 0,
+        )
+        GLES30.glDrawArrays(GLES30.GL_LINES, 0, lineVertexCount)
+    }
+
+    private fun uploadLines(lines: FloatArray) {
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, lineVbo)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, lines.size * Float.SIZE_BYTES, toBuffer(lines), GLES30.GL_STATIC_DRAW)
+        uploadedLines = lines
+        lineVertexCount = lines.size / ConstellationSky.FLOATS_PER_VERTEX
+    }
+
+    private fun toBuffer(data: FloatArray) = ByteBuffer.allocateDirect(data.size * Float.SIZE_BYTES)
+        .order(ByteOrder.nativeOrder())
+        .asFloatBuffer()
+        .put(data)
+        .also { it.position(0) }
+
     private fun upload(vertices: FloatArray) {
-        val buffer = ByteBuffer.allocateDirect(vertices.size * Float.SIZE_BYTES)
-            .order(ByteOrder.nativeOrder())
-            .asFloatBuffer()
-            .put(vertices)
-        buffer.position(0)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vbo)
-        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, vertices.size * Float.SIZE_BYTES, buffer, GLES30.GL_STATIC_DRAW)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, vertices.size * Float.SIZE_BYTES, toBuffer(vertices), GLES30.GL_STATIC_DRAW)
         uploadedVertices = vertices
         starCount = vertices.size / StarVertices.FLOATS_PER_STAR
     }

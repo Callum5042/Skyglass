@@ -37,6 +37,26 @@ class BscParserTest {
         assertEquals(0.60, star.bv!!, 1e-9)
         assertEquals(0.038, star.pmRaArcsecPerYear, 1e-9)
         assertEquals(-0.015, star.pmDecArcsecPerYear, 1e-9)
+        assertEquals(1, star.flamsteed)
+        assertEquals("Alp", star.bayer)
+        assertEquals(null, star.bayerIndex)
+        assertEquals("UMi", star.constellation)
+    }
+
+    @Test
+    fun parsesRecordWithFlamsteedNumberOnly() {
+        val star = parse(hr101)
+        assertEquals(10, star.flamsteed)
+        assertEquals(null, star.bayer)
+        assertEquals("Cet", star.constellation)
+    }
+
+    @Test
+    fun parsesRecordWithoutAnyDesignation() {
+        val star = parse(hr2ShortRecord)
+        assertEquals(null, star.flamsteed)
+        assertEquals(null, star.bayer)
+        assertEquals(null, star.constellation)
     }
 
     @Test

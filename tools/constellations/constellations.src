@@ -1,0 +1,106 @@
+# Constellation stick figures, written by hand in terms of Bayer / Flamsteed designations.
+# gen_assets.py resolves each designation against the Yale Bright Star Catalogue (bsc5.dat) and
+# writes app/src/main/assets/constellations.txt, which refers to stars by HR number.
+#
+# Line format:  Abbr | Name | Genitive | polyline / polyline / ...
+#   Abbr       IAU three-letter abbreviation, as used in the BSC (column 12-14).
+#   Name       label shown in the sky view.
+#   Genitive   used when naming stars ("alpha Canis Majoris").
+#   polyline   star designations joined by '-'. Consecutive stars are connected by a line.
+# Star designations:
+#   Alp, Bet2, Pi3     Bayer letter (Greek abbreviation as in the BSC) with optional superscript,
+#                      in the figure's own constellation
+#   Alp And            Bayer letter in another constellation (a shared star)
+#   61, 24 Cap         Flamsteed number (own constellation, or the one named)
+#   #1234              raw HR number
+# A designation shared by a close pair (e.g. Alp Gem) resolves to the brighter component.
+
+And|Andromeda|Andromedae|Alp-Del-Bet-Gam1/Bet-Mu-Nu-Phi/Del-Eps
+Ant|Antlia|Antliae|Eps-Alp-Iot
+Aps|Apus|Apodis|Alp-Del1-Gam-Bet
+Aqr|Aquarius|Aquarii|Eps-Mu-Bet-Alp-Gam-Pi-Eta-Zet2-Gam/Zet2-Lam-Tau2-Del
+Aql|Aquila|Aquilae|Eps-Zet-Gam-Alp-Bet/Alp-Del-Lam/Del-Eta-The
+Ara|Ara|Arae|Alp-Bet-Gam-Del-Eta-Zet-Eps1-Alp
+Ari|Aries|Arietis|41-Alp-Bet-Gam1
+Aur|Auriga|Aurigae|Alp-Bet-The-Bet Tau-Iot-Alp/Alp-Eps-Zet-Eta-Alp
+Boo|Bootes|Bootis|Alp-Eps-Del-Bet-Gam-Rho-Alp/Alp-Eta
+Cae|Caelum|Caeli|Del-Alp-Bet-Gam1
+Cam|Camelopardalis|Camelopardalis|Gam-Alp-Bet-7-3
+Cnc|Cancer|Cancri|Iot-Gam-Del-Bet/Del-Alp
+CVn|Canes Venatici|Canum Venaticorum|Alp2-Bet
+CMa|Canis Major|Canis Majoris|Gam-Alp-Bet/Alp-Omi2-Del-Eta/Del-Eps
+CMi|Canis Minor|Canis Minoris|Alp-Bet
+Cap|Capricornus|Capricorni|Alp2-Bet-Psi-Ome-24-Zet-Eps-Del-Gam-Iot-The-Alp2
+Car|Carina|Carinae|Alp-Chi-Eps-Iot-Bet-Ome-The-Ups-Iot
+Cas|Cassiopeia|Cassiopeiae|Bet-Alp-Gam-Del-Eps
+Cen|Centaurus|Centauri|Alp1-Bet-Eps-Zet-Eta-Kap/Zet-Nu/Nu-Mu/Nu-The-Iot/Eps-Gam-Del-Pi/Gam-Sig
+Cep|Cepheus|Cephei|Alp-Bet-Gam-Iot-Zet-Alp
+Cet|Cetus|Ceti|Alp-Lam-Mu-Xi2-Nu-Gam-Alp/Gam-Del-Omi-Zet-The-Eta-Iot-Bet-Tau-Zet
+Cha|Chamaeleon|Chamaeleontis|Alp-Gam-Eps-Bet-Del2-Gam
+Cir|Circinus|Circini|Alp-Bet-Gam
+Col|Columba|Columbae|Eps-Alp-Bet-Gam-Del/Bet-Eta
+Com|Coma Berenices|Comae Berenices|Gam-Bet-42
+CrA|Corona Australis|Coronae Australis|Lam-Eps-Gam-Alp-Bet-Del-Zet-The
+CrB|Corona Borealis|Coronae Borealis|The-Bet-Alp-Gam-Del-Eps-Iot
+Crv|Corvus|Corvi|Eps-Gam-Del-Bet-Eps
+Crt|Crater|Crateris|Alp-Bet-Gam-Del-Alp/Gam-Zet
+Cru|Crux|Crucis|Alp1-Gam/Bet-Del
+Cyg|Cygnus|Cygni|Alp-Gam-Eta-Bet1/Del-Gam-Eps
+Del|Delphinus|Delphini|Bet-Alp-Gam2-Del-Bet/Bet-Eps
+Dor|Dorado|Doradus|Gam-Alp-Zet-Bet-Del
+Dra|Draco|Draconis|Lam-Kap-Alp-Iot-The-Eta-Zet-Chi-Del-Xi-Nu-Bet-Gam-Xi
+Equ|Equuleus|Equulei|Gam-Del-Alp-Bet
+Eri|Eridanus|Eridani|Bet-Mu-Nu-Omi2-Gam-Pi-Del-Eps-Zet-Eta-Tau4-Tau6-Tau9-Ups2-43-The1-Iot-Kap-Phi-Chi-Alp
+For|Fornax|Fornacis|Nu-Bet-Alp
+Gem|Gemini|Geminorum|Alp-Tau-Eps-Mu-Eta/Tau-The/Eps-Zet-Del-Ups-Bet/Mu-Nu-Gam-Xi/Zet-Lam
+Gru|Grus|Gruis|Gam-Lam-Mu1-Del1-Bet-Eps-Zet/Del1-Alp/Bet-Iot-The-Rho
+Her|Hercules|Herculis|Zet-Eps-Pi-Eta-Zet/Zet-Bet-Gam/Eps-Del-Alp1/Del-Lam-Mu-Xi-Omi/Pi-Rho-The-Iot/Eta-Sig-Tau-Phi
+Hor|Horologium|Horologii|Alp-Mu-Bet
+Hya|Hydra|Hydrae|Eps-Del-Sig-Eta-Rho-Zet-Eps/Zet-The-Iot-Alp-Ups1-Mu-Nu-Chi1-Xi-Bet-Gam-Pi
+Hyi|Hydrus|Hydri|Bet-Alp-Gam-Bet
+Ind|Indus|Indi|Alp-The-Bet/The-Del-Eps
+Lac|Lacerta|Lacertae|Bet-Alp-5-6-1
+Leo|Leo|Leonis|Lam-Eps-Mu-Zet-Gam1-Eta-Alp/Gam1-Del-Bet-The-Del/The-Iot
+LMi|Leo Minor|Leonis Minoris|46-Bet-21
+Lep|Lepus|Leporis|Alp-Bet-Eps-Mu-Alp/Bet-Gam-Del-Zet-Alp/Zet-Eta-The/Mu-Lam-Iot
+Lib|Libra|Librae|Alp2-Bet-Gam-Ups-Sig-Alp2/Ups-Tau
+Lup|Lupus|Lupi|Iot-Alp-Bet-Del-Phi1-Chi-Eta-Gam-Del/Bet-Eps-Gam/Eps-Zet
+Lyn|Lynx|Lyncis|Alp-38-#3579-31-27-21-15-2
+Lyr|Lyra|Lyrae|Alp-Eps1-Zet1-Alp/Zet1-Del2-Gam-Bet-Zet1
+Men|Mensa|Mensae|Bet-Gam-Alp
+Mic|Microscopium|Microscopii|Iot-Alp-Gam-Eps/Gam-The1
+Mon|Monoceros|Monocerotis|Gam-Bet-18-Del-Alp/Del-Zet/Eps-18
+Mus|Musca|Muscae|Alp-Bet-Del-Gam-Alp/Alp-Eps-Lam
+Nor|Norma|Normae|Eta-Del-Eps-Gam2-Eta
+Oct|Octans|Octantis|Nu-Bet-Del-Nu
+Oph|Ophiuchus|Ophiuchi|Kap-Lam-Del-Eps-Zet-Eta-The/Alp-Kap/Alp-Bet-Gam/Bet-Nu
+Ori|Orion|Orionis|Lam-Gam-Del-Bet/Lam-Alp-Zet-Kap/Del-Eps-Zet
+Pav|Pavo|Pavonis|Alp-Bet-Del-Eps-Zet-Eta-Pi-Xi-Lam-Alp
+Peg|Pegasus|Pegasi|Alp-Bet-Alp And-Gam-Alp/Alp-Zet-The-Eps/Bet-Mu-Lam-Iot-Kap
+Per|Perseus|Persei|Eta-Gam-Alp-Del-Eps-Zet/Alp-Iot-Kap-Bet-Rho
+Phe|Phoenix|Phoenicis|Eps-Alp-Gam-Del-Zet-Bet-Eps
+Pic|Pictor|Pictoris|Alp-Gam-Bet
+PsA|Piscis Austrinus|Piscis Austrini|Alp-Eps-Bet-Gam-Del-Alp/Bet-Mu-Iot
+Psc|Pisces|Piscium|Gam-Kap-Lam-Iot-The-Gam/Iot-Ome-Del-Eps-Mu-Nu-Xi-Alp-Omi-Eta-Phi-Ups-Tau
+Pup|Puppis|Puppis|Rho-Xi-Pi-Nu-Tau-Sig-Zet-Rho
+Pyx|Pyxis|Pyxidis|Gam-Alp-Bet
+Ret|Reticulum|Reticuli|Alp-Bet-Gam-Del-Eps-Alp
+Sge|Sagitta|Sagittae|Gam-Del-Bet/Del-Alp
+Sgr|Sagittarius|Sagittarii|Lam-Del-Eps-Zet-Tau-Sig-Phi-Lam/Phi-Zet/Del-Gam2
+Sco|Scorpius|Scorpii|Bet1-Del-Sig-Alp-Tau-Eps-Mu1-Zet2-Eta-The-Iot1-Kap-Lam/Lam-Ups/Del-Pi-Rho
+Scl|Sculptor|Sculptoris|Bet-Gam-Del-Alp
+Sct|Scutum|Scuti|Bet-Alp-Gam-Del-Bet
+Ser|Serpens Caput|Serpentis|Iot-Kap-Gam-Bet-Del-Alp-Eps-Mu
+Ser|Serpens Cauda|Serpentis|The1-Eta-Zet-Omi-Xi-Nu
+Sex|Sextans|Sextantis|Gam-Alp-Bet
+Tau|Taurus|Tauri|Zet-Alp-The2-Gam-Lam-Xi-Omi/Gam-Del1-Eps
+Tel|Telescopium|Telescopii|Eps-Alp-Zet
+Tri|Triangulum|Trianguli|Alp-Bet-Gam-Alp
+TrA|Triangulum Australe|Trianguli Australis|Alp-Bet-Gam-Alp
+Tuc|Tucana|Tucanae|Alp-Del-Eps-Zet-Bet1-Gam-Alp
+UMa|Ursa Major|Ursae Majoris|Eta-Zet-Eps-Del-Alp-Bet-Gam-Del/Gam-Chi-Psi-Mu-Lam/Psi-Nu-Xi/Bet-Ups-Phi-The-Iot-Kap/Ups-Omi
+UMi|Ursa Minor|Ursae Minoris|Alp-Del-Eps-Zet-Eta-Gam-Bet-Zet
+Vel|Vela|Velorum|Gam2-Del-Kap-Phi-Mu-Psi-Lam-Gam2
+Vir|Virgo|Virginis|Bet-Eta-Gam-Del-Eps/Gam-Zet-Tau-109/Gam-The-Alp-Iot-Mu
+Vol|Volans|Volantis|Alp-Bet-Eps-Del-Gam2-Zet-Eps
+Vul|Vulpecula|Vulpeculae|1-Alp-13-15-23

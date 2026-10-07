@@ -41,6 +41,28 @@ object Coordinates {
         Horizontal(asin(v.z.coerceIn(-1.0, 1.0)), normalizeRadians(atan2(v.x, v.y)))
 
     /**
+     * Mean obliquity of the ecliptic in radians (IAU 1976, Meeus eq. 22.2), for [centuriesSinceJ2000]
+     * of dynamical time. No nutation: the sky view uses the mean equator and equinox of date.
+     */
+    fun meanObliquityRad(centuriesSinceJ2000: Double): Double {
+        val t = centuriesSinceJ2000
+        val arcsec = 23.0 * 3600 + 26 * 60 + 21.448 - 46.8150 * t - 0.00059 * t * t + 0.001813 * t * t * t
+        return Math.toRadians(arcsec / 3600.0)
+    }
+
+    /**
+     * Unit vector in the equatorial frame for ecliptic longitude/latitude (measured from the
+     * equinox the obliquity belongs to, so pass the mean obliquity of date for ecliptic-of-date
+     * coordinates). +X is the vernal equinox and the ecliptic is tilted about it by [obliquityRad].
+     */
+    fun eclipticToEquatorial(lonRad: Double, latRad: Double, obliquityRad: Double): Vector3 =
+        Matrix3.rotationX(obliquityRad) * Vector3(
+            cos(latRad) * cos(lonRad),
+            cos(latRad) * sin(lonRad),
+            sin(latRad),
+        )
+
+    /**
      * Rotation taking equatorial-of-date unit vectors to ENU for an observer at latitude
      * [latitudeRad] when the local sidereal time is [lstRad].
      */

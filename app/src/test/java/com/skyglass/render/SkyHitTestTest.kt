@@ -108,3 +108,76 @@ class SkyHitTestTest {
         assertNotNull("at 3x density 24 dp = 72 px", SkyHitTest.nearestStar(mvp, v, width, height, x, p.y, 3f))
     }
 }
+
+class SkyHitTestBodiesTest {
+
+    private val width = 1080
+    private val height = 2160
+    private val density = 3f
+    private val mvp = Matrix4.perspective(60.0, width.toDouble() / height, SkyViewMath.NEAR, SkyViewMath.FAR)
+
+    private fun body(body: com.skyglass.astro.SkyBody, direction: Vector3, vmag: Double = 0.0) =
+        com.skyglass.astro.BodyPosition(
+            body = body,
+            direction = direction.normalized(),
+            vmag = vmag,
+            distanceAu = 1.0,
+            elongationDeg = 90.0,
+            illuminatedFraction = 0.5,
+            sunDirection = Vector3(1.0, 0.0, 0.0),
+        )
+
+    private fun screenOf(direction: Vector3): ScreenPoint =
+        checkNotNull(SkyProjection.project(mvp, direction.normalized(), width, height))
+
+    private val centre = Vector3(0.0, 0.0, -1.0)
+    private val right = Vector3(0.2, 0.0, -1.0)
+
+    @Test
+    fun tapOnABody_hitsIt() {
+        val bodies = listOf(
+            body(com.skyglass.astro.SkyBody.VENUS, centre, -4.0),
+            body(com.skyglass.astro.SkyBody.MARS, right, 1.0),
+        )
+        val p = screenOf(right)
+        val hit = checkNotNull(SkyHitTest.nearestBody(mvp, bodies, width, height, p.x, p.y, density))
+        assertEquals(1, hit.index)
+        assertEquals(0.0, hit.distancePx, 0.01)
+    }
+
+    @Test
+    fun tapInEmptySky_hitsNoBody() {
+        val bodies = listOf(body(com.skyglass.astro.SkyBody.MARS, centre, 1.0))
+        val p = screenOf(right)
+        assertNull(SkyHitTest.nearestBody(mvp, bodies, width, height, p.x, p.y, density))
+        assertNull(SkyHitTest.nearestBody(mvp, emptyList(), width, height, 10.0, 10.0, density))
+    }
+
+    @Test
+    fun theSunsLargeGlowCanBeHitAwayFromItsCentre() {
+        val sun = body(com.skyglass.astro.SkyBody.SUN, centre, -26.7)
+        val p = screenOf(centre)
+        val glowRadiusPx = com.skyglass.catalog.BodyAppearance.spriteSizeDp(sun) * density / 2
+        assertTrue(glowRadiusPx > SkyHitTest.MIN_TAP_RADIUS_DP * density)
+        assertNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, p.y + glowRadiusPx - 5, density))
+        assertNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, p.y + glowRadiusPx + 5, density))
+    }
+
+    @Test
+    fun bodiesBehindTheViewerAreIgnored() {
+        val behind = listOf(body(com.skyglass.astro.SkyBody.MOON, Vector3(0.2, 0.0, 1.0), -12.7))
+        val p = screenOf(right)
+        assertNull(SkyHitTest.nearestBody(mvp, behind, width, height, p.x, p.y, density))
+    }
+
+    @Test
+    fun aSpriteDrawnSmallerThanNominal_isHitOnlyAcrossWhatIsDrawn() {
+        val sun = body(com.skyglass.astro.SkyBody.SUN, centre, -26.7)
+        val p = screenOf(centre)
+        // Nominal radius is 108 px at 3x, but the GPU draws at most 100 px across, i.e. 50 px radius.
+        // The 24 dp (72 px) minimum reach still applies, so use a point beyond both.
+        val tap = p.y + 80
+        assertNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, tap, density))
+        assertNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, tap, density, maxSpriteSizePx = 100f))
+    }
+}

@@ -12,5 +12,29 @@
     <string name="star_magnitude">Magnitude %1$.2f</string>
     <string name="star_hr">HR %1$d</string>
 
+    <string name="body_sun">Sun</string>
+    <string name="body_moon">Moon</string>
+    <string name="body_mercury">Mercury</string>
+    <string name="body_venus">Venus</string>
+    <string name="body_mars">Mars</string>
+    <string name="body_jupiter">Jupiter</string>
+    <string name="body_saturn">Saturn</string>
+    <string name="body_uranus">Uranus</string>
+    <string name="body_neptune">Neptune</string>
+
+    <string name="moon_phase_new">New Moon</string>
+    <string name="moon_phase_waxing_crescent">Waxing crescent</string>
+    <string name="moon_phase_first_quarter">First quarter</string>
+    <string name="moon_phase_waxing_gibbous">Waxing gibbous</string>
+    <string name="moon_phase_full">Full Moon</string>
+    <string name="moon_phase_waning_gibbous">Waning gibbous</string>
+    <string name="moon_phase_last_quarter">Last quarter</string>
+    <string name="moon_phase_waning_crescent">Waning crescent</string>
+
+    <string name="body_illuminated">%1$d%% illuminated</string>
+    <string name="body_elongation">%1$.0f° from the Sun</string>
+    <string name="body_distance_au">%1$.3f AU from Earth</string>
+    <string name="body_distance_km">%1$,d km from Earth</string>
+
     <string name="action_grant_location">Allow location</string>
 </resources>

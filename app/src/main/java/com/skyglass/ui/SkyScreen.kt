@@ -50,6 +50,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val density = LocalDensity.current.density
     var hasLocationPermission by remember { mutableStateOf(viewModel.hasLocationPermission()) }
+    val selectedBody = state.selectedBody?.let { id -> state.bodies.firstOrNull { it.body == id } }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -74,13 +75,24 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         SkyOverlay(
             renderInputs = viewModel.renderInputs,
             labels = state.constellationLabels,
+            bodies = state.bodies,
             selectedStar = state.selectedStar,
+            selectedBody = selectedBody,
             onTap = { x, y, width, height -> viewModel.onSkyTapped(x, y, width, height, density) },
             modifier = Modifier.fillMaxSize(),
         )
         state.selectedStar?.let { selected ->
             StarInfoCard(
                 description = selected.description,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .safeDrawingPadding()
+                    .padding(16.dp),
+            )
+        }
+        selectedBody?.let { body ->
+            BodyInfoCard(
+                position = body,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .safeDrawingPadding()

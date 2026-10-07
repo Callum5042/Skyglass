@@ -7,6 +7,10 @@ import android.location.Location
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.skyglass.astro.AstroTime
+import com.skyglass.astro.BodyPosition
+import com.skyglass.astro.SkyBody
+import com.skyglass.astro.SolarSystem
+import com.skyglass.catalog.BodyVertices
 import com.skyglass.catalog.ConstellationGeometry
 import com.skyglass.catalog.ConstellationLabel
 import com.skyglass.catalog.ConstellationSky
@@ -24,6 +28,7 @@ import com.skyglass.sensors.MagneticDeclination
 import com.skyglass.sensors.OrientationSensor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,6 +48,10 @@ data class SkyUiState(
     val locationEnabled: Boolean = true,
     val constellationLabels: List<ConstellationLabel> = emptyList(),
     val selectedStar: SelectedStar? = null,
+    /** Sun, Moon and planets as of the last update; empty until the observer's location is known. */
+    val bodies: List<BodyPosition> = emptyList(),
+    /** The tapped body; its current position is looked up in [bodies] so the ring follows it. */
+    val selectedBody: SkyBody? = null,
 )
 
 private class LoadedSky(
@@ -63,6 +72,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
 
     private val locationSource = LocationSource(application)
     private var locationJob: Job? = null
+    private var bodyJob: Job? = null
 
     private val _uiState = MutableStateFlow(SkyUiState(hasRotationSensor = orientationSensor.isAvailable))
     val uiState: StateFlow<SkyUiState> = _uiState.asStateFlow()
@@ -98,27 +108,39 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Selects the star nearest the tap, or clears the selection when none is within reach.
+     * Selects the Sun, Moon, planet or star nearest the tap (a body wins a tie, and a star only
+     * if it is closer), or clears the selection when none is within reach.
      * Coordinates are in pixels of the [widthPx] × [heightPx] sky view.
      */
     fun onSkyTapped(x: Float, y: Float, widthPx: Int, heightPx: Int, density: Float) {
         val mvp = renderInputs.lastMvp
         val vertices = renderInputs.starVertices
         val namer = starNamer
-        var selected: SelectedStar? = null
-        if (mvp != null && vertices != null && namer != null) {
-            val hit = SkyHitTest.nearestStar(mvp, vertices, widthPx, heightPx, x.toDouble(), y.toDouble(), density)
-            if (hit != null) {
-                val base = hit.index * StarVertices.FLOATS_PER_STAR + StarVertices.POSITION_OFFSET
-                selected = SelectedStar(
-                    description = namer.describe(stars[hit.index]),
+        var selectedStar: SelectedStar? = null
+        var selectedBody: SkyBody? = null
+        if (mvp != null) {
+            val bodies = _uiState.value.bodies
+            val bodyHit = SkyHitTest.nearestBody(
+                mvp, bodies, widthPx, heightPx, x.toDouble(), y.toDouble(), density, renderInputs.maxPointSizePx,
+            )
+            val starHit = if (vertices != null && namer != null) {
+                SkyHitTest.nearestStar(mvp, vertices, widthPx, heightPx, x.toDouble(), y.toDouble(), density)
+            } else {
+                null
+            }
+            if (bodyHit != null && (starHit == null || bodyHit.distancePx <= starHit.distancePx)) {
+                selectedBody = bodies[bodyHit.index].body
+            } else if (starHit != null && vertices != null && namer != null) {
+                val base = starHit.index * StarVertices.FLOATS_PER_STAR + StarVertices.POSITION_OFFSET
+                selectedStar = SelectedStar(
+                    description = namer.describe(stars[starHit.index]),
                     direction = Vector3(
                         vertices[base].toDouble(), vertices[base + 1].toDouble(), vertices[base + 2].toDouble(),
                     ),
                 )
             }
         }
-        _uiState.update { it.copy(selectedStar = selected) }
+        _uiState.update { it.copy(selectedStar = selectedStar, selectedBody = selectedBody) }
     }
 
     fun hasLocationPermission(): Boolean = locationSource.hasPermission()
@@ -126,12 +148,41 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     fun onResume() {
         orientationSensor.start()
         startLocationUpdates()
+        startBodyUpdates()
     }
 
     fun onPause() {
         orientationSensor.stop()
         locationJob?.cancel()
         locationJob = null
+        bodyJob?.cancel()
+        bodyJob = null
+    }
+
+    /**
+     * Recomputes the Sun, Moon and planets now and then every [BODY_UPDATE_INTERVAL_MS]. They are
+     * stored in the equatorial frame, so the Earth's rotation does not move them; what changes is
+     * their own motion (the Moon drifts about 0.0015° in 10 s, the planets far less) and the Moon's
+     * parallax as the observer is carried round, together well under a pixel per update.
+     */
+    private fun startBodyUpdates() {
+        if (bodyJob != null) return
+        bodyJob = viewModelScope.launch {
+            while (true) {
+                updateBodies()
+                delay(BODY_UPDATE_INTERVAL_MS)
+            }
+        }
+    }
+
+    /** No-op until a location is known: the Moon's parallax needs the observer. */
+    private fun updateBodies() {
+        val observer = renderInputs.observer ?: return
+        val bodies = SolarSystem.positions(
+            AstroTime.julianDate(System.currentTimeMillis()), observer.latitudeDeg, observer.longitudeDeg,
+        )
+        renderInputs.bodyVertices = BodyVertices.build(bodies)
+        _uiState.update { it.copy(bodies = bodies) }
     }
 
     @SuppressLint("MissingPermission") // guarded by hasPermission()
@@ -151,9 +202,14 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         val observer = Observer(location.latitude, location.longitude, declination)
         renderInputs.observer = observer
         _uiState.update { it.copy(observer = observer, locationEnabled = true) }
+        updateBodies() // the Moon's parallax depends on where we are
     }
 
     override fun onCleared() {
         orientationSensor.stop()
+    }
+
+    private companion object {
+        const val BODY_UPDATE_INTERVAL_MS = 10_000L
     }
 }

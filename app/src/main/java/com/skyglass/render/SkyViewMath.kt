@@ -4,6 +4,8 @@ import com.skyglass.astro.Coordinates
 import com.skyglass.math.Matrix3
 import com.skyglass.math.Matrix4
 import com.skyglass.math.Quaternion
+import com.skyglass.math.Vector3
+import kotlin.math.hypot
 
 /**
  * Builds the single matrix that takes static equatorial star vectors to clip space:
@@ -52,4 +54,35 @@ object SkyViewMath {
      */
     fun deviceToScreen(displayRotation: Int): Matrix3 =
         Matrix3.rotationZ(Math.toRadians(90.0 * (displayRotation and 3)))
+
+    /**
+     * Direction of the sunlight in a body's own sprite frame, for shading the Moon's phase: x to
+     * the right and y up on screen, z toward the viewer. With elongation ψ between the body and
+     * the Sun, the component along the line of sight is −cos ψ (+1 at full Moon, −1 at new) and
+     * the component across it has length sin ψ and points toward the Sun *as drawn*; the latter
+     * is found by projecting a small step from the body toward the Sun through [mvp], so it
+     * follows the screen orientation, display rotation included. The result has unit length.
+     *
+     * Returns null if the body, or the step toward the Sun, is behind the viewer.
+     *
+     * @param bodyDirection unit vector toward the body, equatorial of date
+     * @param sunDirection unit vector toward the Sun, same frame
+     */
+    fun spriteLight(mvp: Matrix4, bodyDirection: Vector3, sunDirection: Vector3, widthPx: Int, heightPx: Int): Vector3? {
+        val cosPsi = bodyDirection dot sunDirection
+        val toward = sunDirection - bodyDirection * cosPsi
+        val sinPsi = toward.length()
+        if (sinPsi < 1e-9) return Vector3(0.0, 0.0, -cosPsi) // Sun dead ahead or dead behind
+        val origin = SkyProjection.project(mvp, bodyDirection, widthPx, heightPx) ?: return null
+        val stepped = SkyProjection.project(mvp, bodyDirection + toward * (SPRITE_LIGHT_STEP / sinPsi), widthPx, heightPx)
+            ?: return null
+        val dx = stepped.x - origin.x
+        val dy = origin.y - stepped.y // screen pixels grow downward; the sprite frame's y is up
+        val length = hypot(dx, dy)
+        if (length < 1e-12) return Vector3(0.0, 0.0, -cosPsi)
+        return Vector3(dx / length * sinPsi, dy / length * sinPsi, -cosPsi)
+    }
+
+    /** Size of the probe step, in unit-vector length (about 0.6°), used by [spriteLight]. */
+    private const val SPRITE_LIGHT_STEP = 0.01
 }

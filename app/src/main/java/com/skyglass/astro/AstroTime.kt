@@ -15,6 +15,16 @@ object AstroTime {
 
     fun julianCenturiesSinceJ2000(julianDate: Double): Double = (julianDate - JD_J2000) / DAYS_PER_CENTURY
 
+    /**
+     * TT − UTC in seconds: 32.184 s plus the 37 leap seconds in force since 2017. Solar-system
+     * ephemerides run on dynamical time, and the Moon moves 0.5″ per 3 s, so ignoring this
+     * offset would displace it by about 0.01°. It is constant until the next leap second.
+     */
+    const val TT_MINUS_UTC_SECONDS = 69.184
+
+    /** Julian Ephemeris Day (dynamical time) for a UTC Julian date. */
+    fun julianEphemerisDay(julianDateUtc: Double): Double = julianDateUtc + TT_MINUS_UTC_SECONDS / 86_400.0
+
     /** Greenwich mean sidereal time in degrees, [0, 360). Meeus, *Astronomical Algorithms*, eq. 12.4. */
     fun greenwichMeanSiderealTimeDeg(julianDate: Double): Double {
         val d = julianDate - JD_J2000

@@ -3,18 +3,26 @@ package com.skyglass.render
 import android.opengl.GLES30
 import android.opengl.GLSurfaceView
 import com.skyglass.astro.AstroTime
+import com.skyglass.catalog.BodyAppearance
+import com.skyglass.catalog.BodyVertices
 import com.skyglass.catalog.ConstellationSky
 import com.skyglass.catalog.StarVertices
+import com.skyglass.math.Matrix4
 import com.skyglass.math.Quaternion
+import com.skyglass.math.Vector3
 import com.skyglass.sensors.OrientationFilter
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.min
+import kotlin.math.tan
 
 /**
- * Draws the constellation lines and the star field. All vectors live in static VBOs in the
- * equatorial frame of date; each frame only the MVP matrix changes, built by [SkyViewMath].
+ * Draws the constellation lines, the star field, then the Sun, Moon and planets. All vectors live
+ * in VBOs in the equatorial frame of date; each frame only the MVP matrix changes, built by
+ * [SkyViewMath]. The star and line buffers are static; the body buffer is replaced every few
+ * seconds as the bodies move, and re-uploaded when its array instance changes.
  *
  * @param orientation latest raw device→magnetic-ENU rotation; smoothed here, once per frame
  * @param displayRotation current `Surface.ROTATION_*` value
@@ -46,6 +54,20 @@ class SkyRenderer(
     private var uploadedLines: FloatArray? = null
     private var lineVertexCount = 0
 
+    private lateinit var bodyProgram: ShaderProgram
+    private var uBodyMvp = -1
+    private var uBodyPointScale = -1
+    private var uBodyMaxPointSize = -1
+    private var uBodyMoonLight = -1
+    private var uBodyMoonOccluder = -1
+    private var bodyVbo = 0
+    private var uploadedBodies: FloatArray? = null
+    private var bodyCount = 0
+    private var moonDirection: Vector3? = null
+    private var moonSunDirection: Vector3? = null
+
+    private var viewportWidth = 1
+    private var viewportHeight = 1
     private var aspect = 1.0
     private var maxPointSize = 64f
     private var lastFrameNanos = 0L
@@ -65,17 +87,27 @@ class SkyRenderer(
         uLineMvp = lineProgram.uniformLocation("uMvp")
         uLineColor = lineProgram.uniformLocation("uColor")
 
-        val ids = IntArray(2)
-        GLES30.glGenBuffers(2, ids, 0)
+        bodyProgram = ShaderProgram(BodyShaders.VERTEX, BodyShaders.FRAGMENT)
+        uBodyMvp = bodyProgram.uniformLocation("uMvp")
+        uBodyPointScale = bodyProgram.uniformLocation("uPointScale")
+        uBodyMaxPointSize = bodyProgram.uniformLocation("uMaxPointSize")
+        uBodyMoonLight = bodyProgram.uniformLocation("uMoonLight")
+        uBodyMoonOccluder = bodyProgram.uniformLocation("uMoonOccluder")
+
+        val ids = IntArray(3)
+        GLES30.glGenBuffers(3, ids, 0)
         vbo = ids[0]
         lineVbo = ids[1]
+        bodyVbo = ids[2]
         // A new context has empty buffers, even if the data was uploaded to a previous one.
         uploadedVertices = null
         uploadedLines = null
+        uploadedBodies = null
 
         val range = FloatArray(2)
         GLES30.glGetFloatv(GLES30.GL_ALIASED_POINT_SIZE_RANGE, range, 0)
         maxPointSize = range[1]
+        inputs.maxPointSizePx = maxPointSize // lets taps use the sprite size actually drawn
 
         filter.reset()
         lastFrameNanos = 0L
@@ -83,6 +115,8 @@ class SkyRenderer(
 
     override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
         GLES30.glViewport(0, 0, width, height)
+        viewportWidth = width
+        viewportHeight = height
         aspect = if (height > 0) width.toDouble() / height else 1.0
     }
 
@@ -132,6 +166,89 @@ class SkyRenderer(
         bindAttribute(StarShaders.ATTRIB_SIZE, 1, StarVertices.SIZE_OFFSET)
         bindAttribute(StarShaders.ATTRIB_COLOR, 3, StarVertices.COLOR_OFFSET)
         GLES30.glDrawArrays(GLES30.GL_POINTS, 0, starCount)
+
+        inputs.bodyVertices?.let { bodies ->
+            if (bodies !== uploadedBodies) uploadBodies(bodies)
+            drawBodies(mvp)
+        }
+    }
+
+    /** Sun, Moon and planets over the stars. */
+    private fun drawBodies(mvp: Matrix4) {
+        if (bodyCount == 0) return
+        bodyProgram.use()
+        GLES30.glUniformMatrix4fv(uBodyMvp, 1, false, mvpFloats, 0)
+        GLES30.glUniform1f(uBodyPointScale, pointScale)
+        GLES30.glUniform1f(uBodyMaxPointSize, maxPointSize)
+        setMoonUniforms(mvp)
+
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, bodyVbo)
+        bindBodyAttribute(BodyShaders.ATTRIB_POSITION, 3, BodyVertices.POSITION_OFFSET)
+        bindBodyAttribute(BodyShaders.ATTRIB_SIZE, 1, BodyVertices.SIZE_OFFSET)
+        bindBodyAttribute(BodyShaders.ATTRIB_COLOR, 3, BodyVertices.COLOR_OFFSET)
+        bindBodyAttribute(BodyShaders.ATTRIB_KIND, 1, BodyVertices.KIND_OFFSET)
+
+        // Premultiplied "over": glows (alpha 0) still add, while the Moon's disc (alpha 1)
+        // hides the stars behind it.
+        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE_MINUS_SRC_ALPHA)
+        GLES30.glDrawArrays(GLES30.GL_POINTS, 0, bodyCount)
+        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE)
+
+        // These arrays point into the small body buffer. The line pass of the next frame does not
+        // read them, and must not be left with enabled arrays that run past the end of their buffer.
+        for (attribute in BodyShaders.ATTRIB_POSITION..BodyShaders.ATTRIB_KIND) {
+            GLES30.glDisableVertexAttribArray(attribute)
+        }
+    }
+
+    /**
+     * The Moon's lit side in its sprite frame, and how much of its drawn disc is opaque. The
+     * drawn disc is enlarged; only the true angular radius (a few dp) may hide what is behind.
+     */
+    private fun setMoonUniforms(mvp: Matrix4) {
+        val moon = moonDirection
+        val sun = moonSunDirection
+        // Out of view or unknown: any value will do, since nothing of the Moon is drawn then.
+        val light = (if (moon != null && sun != null) {
+            SkyViewMath.spriteLight(mvp, moon, sun, viewportWidth, viewportHeight)
+        } else {
+            null
+        }) ?: Vector3(0.0, 0.0, 1.0)
+        GLES30.glUniform3f(uBodyMoonLight, light.x.toFloat(), light.y.toFloat(), light.z.toFloat())
+
+        val focalPx = (viewportHeight / 2.0) / tan(Math.toRadians(FOV_Y_DEG / 2))
+        val trueRadiusPx = tan(Math.toRadians(BodyAppearance.MOON_TRUE_RADIUS_DEG)) * focalPx
+        val drawnSpritePx = min(BodyAppearance.MOON_SPRITE_DP * pointScale, maxPointSize)
+        val drawnDiscRadiusPx = drawnSpritePx / 2.0 * BodyAppearance.MOON_DISC_FRACTION
+        val occluder = (trueRadiusPx / drawnDiscRadiusPx).coerceIn(MIN_MOON_OCCLUDER, 1.0)
+        GLES30.glUniform1f(uBodyMoonOccluder, occluder.toFloat())
+    }
+
+    private fun uploadBodies(bodies: FloatArray) {
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, bodyVbo)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, bodies.size * Float.SIZE_BYTES, toBuffer(bodies), GLES30.GL_DYNAMIC_DRAW)
+        uploadedBodies = bodies
+        bodyCount = bodies.size / BodyVertices.FLOATS_PER_BODY
+        moonDirection = null
+        moonSunDirection = null
+        for (i in 0 until bodyCount) {
+            val base = i * BodyVertices.FLOATS_PER_BODY
+            if (bodies[base + BodyVertices.KIND_OFFSET] == BodyAppearance.KIND_MOON) {
+                moonDirection = readVector(bodies, base + BodyVertices.POSITION_OFFSET)
+                moonSunDirection = readVector(bodies, base + BodyVertices.SUN_DIRECTION_OFFSET)
+            }
+        }
+    }
+
+    private fun readVector(data: FloatArray, offset: Int) =
+        Vector3(data[offset].toDouble(), data[offset + 1].toDouble(), data[offset + 2].toDouble())
+
+    private fun bindBodyAttribute(location: Int, size: Int, offsetFloats: Int) {
+        GLES30.glEnableVertexAttribArray(location)
+        GLES30.glVertexAttribPointer(
+            location, size, GLES30.GL_FLOAT, false,
+            BodyVertices.FLOATS_PER_BODY * Float.SIZE_BYTES, offsetFloats * Float.SIZE_BYTES,
+        )
     }
 
     private fun drawLines() {
@@ -177,5 +294,8 @@ class SkyRenderer(
 
     private companion object {
         const val FOV_Y_DEG = 60.0
+
+        /** Keeps the shader's smoothstep well defined if the Moon would be vanishingly small. */
+        const val MIN_MOON_OCCLUDER = 0.05
     }
 }

@@ -30,6 +30,7 @@ import com.skyglass.astro.BodyPosition
 import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.SkyBody
 import com.skyglass.catalog.BodyAppearance
+import com.skyglass.catalog.ConstellationDescription
 import com.skyglass.catalog.ConstellationLabel
 import com.skyglass.catalog.DeepSkyAppearance
 import com.skyglass.catalog.NavigationTarget
@@ -49,6 +50,14 @@ import kotlin.math.sin
 
 /** Dim, slightly blue so labels sit behind the stars without spoiling dark adaptation. */
 private val ConstellationLabelColor = Color(0xFF7B8FB8)
+
+/**
+ * A selected constellation: its name and the rings round the stars of its figure, in the pale blue of
+ * its lines in the sky (`LineShaders.HIGHLIGHT_*`), clearly brighter than the other names.
+ */
+private val ConstellationHighlightColor = Color(0xFFA9C6FF)
+private const val HIGHLIGHT_STAR_RING_BASE_DP = 5f
+private const val HIGHLIGHT_STAR_RING_PER_MAGNITUDE_DP = 0.9f
 
 /** Warmer than the constellation labels, so the Sun, Moon and planets read as a different kind of object. */
 private val BodyLabelColor = Color(0xFFD2BE94)
@@ -131,6 +140,8 @@ fun SkyOverlay(
     deepSkyLabels: List<DeepSkyLabel>,
     selectedDeepSky: SelectedDeepSky?,
     showDeepSky: Boolean,
+    selectedConstellation: ConstellationDescription?,
+    showConstellations: Boolean,
     navigation: NavigationTarget?,
     navigationInsets: NavInsets,
     showHorizon: Boolean,
@@ -204,17 +215,35 @@ fun SkyOverlay(
             }
         }
 
+        // Names are drawn when the constellations are switched on; a selected constellation is named whatever the switch says.
+        val litNames = selectedConstellation?.figureNames.orEmpty()
         labels.forEachIndexed { i, label ->
+            val lit = label.name in litNames
+            if (!showConstellations && !lit) return@forEachIndexed
             val point = SkyProjection.project(mvp, label.direction, width, height) ?: return@forEachIndexed
             if (!SkyProjection.isOnScreen(point, width, height)) return@forEachIndexed
             val layout = measuredLabels[i]
             drawText(
                 layout,
-                color = ConstellationLabelColor,
+                color = if (lit) ConstellationHighlightColor else ConstellationLabelColor,
+                shadow = if (lit) CompassLabelShadow else null,
                 topLeft = Offset(
                     point.x.toFloat() - layout.size.width / 2f,
                     point.y.toFloat() - layout.size.height / 2f,
                 ),
+            )
+        }
+
+        // The stars of a selected constellation's figure get a ring each; their lines are lit by the renderer.
+        selectedConstellation?.figureStars?.forEach { star ->
+            val point = SkyProjection.project(mvp, star.direction, width, height) ?: return@forEach
+            val radiusPx = (HIGHLIGHT_STAR_RING_BASE_DP + HIGHLIGHT_STAR_RING_PER_MAGNITUDE_DP * (5.0 - star.vmag).coerceIn(0.0, 6.0).toFloat()).dp.toPx()
+            if (!SkyProjection.isOnScreen(point, width, height, marginPx = radiusPx.toDouble())) return@forEach
+            drawCircle(
+                ConstellationHighlightColor,
+                radius = radiusPx,
+                center = Offset(point.x.toFloat(), point.y.toFloat()),
+                style = Stroke(width = 1.2.dp.toPx()),
             )
         }
 

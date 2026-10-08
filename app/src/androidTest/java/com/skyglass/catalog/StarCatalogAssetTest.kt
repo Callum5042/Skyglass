@@ -28,4 +28,14 @@ class StarCatalogAssetTest {
         assertEquals((1..110).toList(), objects.mapNotNull { it.messierNumber }.sorted())
         assertTrue("loaded ${objects.size}", objects.size >= 150)
     }
+
+    @Test
+    fun bundledConstellationLore_coversEveryConstellation() {
+        val assets = InstrumentationRegistry.getInstrumentation().targetContext.assets
+        val lore = StarCatalog.loadConstellationLore(assets)
+        val figures = StarCatalog.loadConstellations(assets).map { it.abbreviation }.toSet()
+
+        assertEquals(88, lore.size)
+        assertEquals(figures, lore.map { it.abbreviation }.toSet())
+    }
 }

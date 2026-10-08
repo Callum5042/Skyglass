@@ -44,6 +44,18 @@ class SkyRenderInputs {
     @Volatile var showMilkyWay: Boolean = true
 
     /**
+     * Draw the constellation lines (their names are the overlay's). A selected constellation is
+     * highlighted whatever this says: see [highlightedConstellation].
+     */
+    @Volatile var showConstellations: Boolean = true
+
+    /**
+     * The selected constellation's lines as vertex ranges in [constellationLines] (`ConstellationSky.rangesOf`):
+     * `[first0, count0, first1, count1, ...]`, redrawn brighter and wider. Null when none is selected.
+     */
+    @Volatile var highlightedConstellation: IntArray? = null
+
+    /**
      * Vertical field of view of the projection. [DEFAULT_FOV_Y_DEG] for the enhanced view; in the
      * camera view the real camera's (see `CameraFov`), so the sky lines up with the image.
      */

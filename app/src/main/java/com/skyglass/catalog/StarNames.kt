@@ -114,11 +114,7 @@ class StarNamer(
 
         /** Serpens has two figures with their own names; the constellation is the part they share, word by word. */
         private fun namesByAbbreviation(constellations: List<Constellation>): Map<String, String> =
-            constellations.groupBy { it.abbreviation }.mapValues { (_, figures) ->
-                figures.map { it.name.split(" ") }
-                    .reduce { a, b -> a.zip(b).takeWhile { (x, y) -> x == y }.map { it.first } }
-                    .joinToString(" ")
-            }
+            constellations.groupBy { it.abbreviation }.mapValues { (_, figures) -> ConstellationNames.common(figures) }
 
         /** HR number to constellation abbreviation, leaving out stars that two constellations' figures share. */
         private fun abbreviationsByHr(constellations: List<Constellation>): Map<Int, String> =

@@ -11,6 +11,15 @@ object LineShaders {
     const val LINE_BLUE = 0.38f
 
     /**
+     * A selected constellation's own lines, drawn over the faint ones: the same blue-grey hue turned
+     * up to a pale, clear blue so it reads as "the same lines, lit". (Alpha follows the camera-mode
+     * rule like every line, so over the camera image it is about as opaque as the horizon at most.)
+     */
+    const val HIGHLIGHT_RED = 0.42f
+    const val HIGHLIGHT_GREEN = 0.62f
+    const val HIGHLIGHT_BLUE = 1.00f
+
+    /**
      * The horizon: a muted teal-green, a different hue from the blue-grey constellation lines so the
      * two never read as the same kind of thing, and clearly brighter than them. (Drawn 2 px wide
      * where the GPU allows wide lines; see `SkyRenderer`.)

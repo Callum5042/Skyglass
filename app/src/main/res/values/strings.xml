@@ -126,6 +126,20 @@
     <string name="guide_grid">Grid</string>
     <string name="guide_deep_sky">Deep sky</string>
     <string name="guide_milky_way">Milky Way</string>
+    <string name="guide_constellations">Constellations</string>
+
+    <string name="constellation_subtitle">%1$s · %2$s</string>
+    <string name="constellation_position_above">Centre %1$.0f° above the horizon · %2$.0f° %3$s</string>
+    <string name="constellation_position_below">Centre %1$.0f° below the horizon · %2$.0f° %3$s</string>
+    <string name="constellation_chart_description">Chart of %1$s with its stars joined by lines; north is up and east is to the left</string>
+    <string name="constellation_label_origin">Origin</string>
+    <string name="constellation_label_genitive">Genitive</string>
+    <string name="constellation_label_bright_stars">Brightest stars</string>
+    <string name="constellation_origin_ancient">ancient · %1$s</string>
+    <string name="constellation_origin_modern">modern · %1$s</string>
+    <string name="constellation_bright_star">%1$s %2$.1f</string>
+    <string name="constellation_story_myth">The myth</string>
+    <string name="constellation_story_history">The history of the name</string>
 
     <string name="search_toggle_label">Search</string>
     <string name="search_toggle_open">Search shown</string>

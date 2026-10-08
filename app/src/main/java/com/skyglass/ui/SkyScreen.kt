@@ -129,7 +129,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val localDensity = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val safeDrawing = WindowInsets.safeDrawing
-    val infoCardShowing = !searchOpen && (state.selectedStar != null || selectedBody != null || state.selectedDeepSky != null)
+    val infoCardShowing = !searchOpen &&
+        (state.selectedStar != null || selectedBody != null || state.selectedDeepSky != null || state.selectedConstellation != null)
     val navigationInsets = with(localDensity) {
         val margin = NavigationArrowMargin.toPx()
         val controlsBottom = safeDrawing.getTop(localDensity) + (ScreenMargin + TopControlsHeight).toPx()
@@ -212,6 +213,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
             deepSkyLabels = state.deepSkyLabels,
             selectedDeepSky = state.selectedDeepSky,
             showDeepSky = state.showDeepSky,
+            selectedConstellation = state.selectedConstellation,
+            showConstellations = state.showConstellations,
             navigation = state.navigation,
             navigationInsets = navigationInsets,
             showHorizon = state.showHorizon,
@@ -242,6 +245,22 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 observer = state.observer,
                 julianDate = state.julianDate,
                 riseSet = state.riseSet,
+                expanded = detailsExpanded,
+                onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                onDismiss = viewModel::clearSelection,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .safeDrawingPadding()
+                    .padding(ScreenMargin)
+                    .padding(top = TopControlsHeight)
+                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+            )
+        }
+        state.selectedConstellation?.takeIf { !searchOpen }?.let { selected ->
+            ConstellationInfoCard(
+                description = selected,
+                observer = state.observer,
+                julianDate = state.julianDate,
                 expanded = detailsExpanded,
                 onToggleExpanded = { detailsExpanded = !detailsExpanded },
                 onDismiss = viewModel::clearSelection,
@@ -355,10 +374,12 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     showGrid = state.showGrid,
                     showDeepSky = state.showDeepSky,
                     showMilkyWay = state.showMilkyWay,
+                    showConstellations = state.showConstellations,
                     onShowHorizonChange = viewModel::setShowHorizon,
                     onShowGridChange = viewModel::setShowGrid,
                     onShowDeepSkyChange = viewModel::setShowDeepSky,
                     onShowMilkyWayChange = viewModel::setShowMilkyWay,
+                    onShowConstellationsChange = viewModel::setShowConstellations,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                 )
             }
@@ -537,7 +558,8 @@ private fun StarLimitToggle(expanded: Boolean, onClick: () -> Unit, modifier: Mo
 
 /**
  * The display switches, two to a row: the horizon line with its compass letters, the altitude/azimuth
- * grid, the deep-sky objects and the Milky Way band.
+ * grid, the deep-sky objects and the Milky Way band, then the constellation lines and names on a row of
+ * their own (the label is too long for half the card's width at 360 dp).
  */
 @Composable
 private fun DisplaySwitches(
@@ -545,10 +567,12 @@ private fun DisplaySwitches(
     showGrid: Boolean,
     showDeepSky: Boolean,
     showMilkyWay: Boolean,
+    showConstellations: Boolean,
     onShowHorizonChange: (Boolean) -> Unit,
     onShowGridChange: (Boolean) -> Unit,
     onShowDeepSkyChange: (Boolean) -> Unit,
     onShowMilkyWayChange: (Boolean) -> Unit,
+    onShowConstellationsChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.background(CardBackground, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp)) {
@@ -560,6 +584,7 @@ private fun DisplaySwitches(
             GuideSwitch(stringResource(R.string.guide_deep_sky), showDeepSky, onShowDeepSkyChange, Modifier.weight(1f))
             GuideSwitch(stringResource(R.string.guide_milky_way), showMilkyWay, onShowMilkyWayChange, Modifier.weight(1f))
         }
+        GuideSwitch(stringResource(R.string.guide_constellations), showConstellations, onShowConstellationsChange, Modifier.fillMaxWidth())
     }
 }
 

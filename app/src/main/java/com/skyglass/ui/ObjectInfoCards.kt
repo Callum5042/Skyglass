@@ -1,6 +1,8 @@
 package com.skyglass.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,13 +23,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.skyglass.R
 import com.skyglass.astro.AstroTime
@@ -41,6 +47,9 @@ import com.skyglass.astro.Sexagesimal
 import com.skyglass.astro.SkyBody
 import com.skyglass.astro.SkyPlacement
 import com.skyglass.astro.SolarSystem
+import com.skyglass.catalog.ConstellationChart
+import com.skyglass.catalog.ConstellationDescription
+import com.skyglass.catalog.ConstellationOrigin
 import com.skyglass.catalog.DeepSkyMeasure
 import com.skyglass.catalog.DeepSkySize
 import com.skyglass.catalog.StarDistance
@@ -56,6 +65,19 @@ import kotlin.math.abs
 /** The cards are no wider than this, and the detail rows scroll beyond [DetailRowsMaxHeight], so they never take over the sky. */
 private val CardMaxWidth = 360.dp
 private val DetailRowsMaxHeight = 140.dp
+
+/** The constellation card carries a few sentences of story as well as the rows, so its details get more room. */
+private val ConstellationDetailsMaxHeight = 220.dp
+
+/** The constellation picture in the card header. */
+private val ChartWidth = 112.dp
+private val ChartHeight = 96.dp
+private val ChartPadding = 8.dp
+private val ChartBackground = Color(0xFF05070C)
+private val ChartBorder = Color(0xFF1F2A3D)
+private val ChartLineColor = Color(0xFF6F9BE8)
+private val ChartFigureStarColor = Color(0xFFEAF0FF)
+private val ChartContextStarColor = Color(0xFF6B7488)
 private val LabelWidth = 112.dp
 
 /** The size of the tap target for the close button and the "more details" row. */
@@ -172,6 +194,131 @@ fun DeepSkyInfoCard(
 }
 
 /**
+ * Details of the tapped (or searched-for) constellation: its name, what it depicts and where the
+ * middle of its figure is now, with a picture of the figure beside them; then (when [expanded]) its
+ * origin, genitive, brightest stars and the story, the myth for an ancient constellation and the
+ * history of the name for a modern one. The same constellation is lit up in the sky.
+ */
+@Composable
+fun ConstellationInfoCard(
+    description: ConstellationDescription,
+    observer: Observer?,
+    julianDate: Double?,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val placement = placementOf(description.direction, observer, julianDate)
+    val lore = description.lore
+    ObjectCard(
+        expanded = expanded,
+        onToggleExpanded = onToggleExpanded,
+        onDismiss = onDismiss,
+        modifier = modifier,
+        detailsMaxHeight = ConstellationDetailsMaxHeight,
+        header = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = description.name, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = if (lore != null) {
+                            stringResource(R.string.constellation_subtitle, lore.figure, description.abbreviation)
+                        } else {
+                            description.abbreviation
+                        },
+                        color = CardSecondaryTextColor,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    PositionSummary(
+                        placement,
+                        aboveRes = R.string.constellation_position_above,
+                        belowRes = R.string.constellation_position_below,
+                    )
+                }
+                description.chart?.let { chart ->
+                    ConstellationChartImage(
+                        chart = chart,
+                        description = stringResource(R.string.constellation_chart_description, description.name),
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
+            }
+        },
+        details = {
+            if (lore != null) {
+                val originRes = if (lore.origin == ConstellationOrigin.ANCIENT) {
+                    R.string.constellation_origin_ancient
+                } else {
+                    R.string.constellation_origin_modern
+                }
+                DetailRow(stringResource(R.string.constellation_label_origin), stringResource(originRes, lore.tradition))
+            }
+            DetailRow(stringResource(R.string.constellation_label_genitive), description.genitive)
+            if (description.brightStars.isNotEmpty()) {
+                DetailRow(
+                    stringResource(R.string.constellation_label_bright_stars),
+                    description.brightStars.map { stringResource(R.string.constellation_bright_star, it.title, it.vmag) }.joinToString(", "),
+                )
+            }
+            if (lore != null) {
+                Text(
+                    text = stringResource(
+                        if (lore.origin == ConstellationOrigin.ANCIENT) R.string.constellation_story_myth else R.string.constellation_story_history,
+                    ),
+                    color = CardSecondaryTextColor,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+                Text(text = lore.story, color = CardTextColor, style = MaterialTheme.typography.bodySmall)
+            }
+        },
+    )
+}
+
+/**
+ * The picture of a constellation: its stick figure and stars (and its brighter neighbours, dimmer),
+ * north up and east to the left as in the sky, fitted into a small box. Drawn from [chart], which is
+ * made from the catalogue positions (see `ConstellationCharts`), so it is not artwork.
+ */
+@Composable
+private fun ConstellationChartImage(chart: ConstellationChart, description: String, modifier: Modifier = Modifier) {
+    Canvas(
+        modifier = modifier
+            .size(ChartWidth, ChartHeight)
+            .background(ChartBackground, RoundedCornerShape(8.dp))
+            .border(1.dp, ChartBorder, RoundedCornerShape(8.dp))
+            .semantics { contentDescription = description },
+    ) {
+        val padding = ChartPadding.toPx()
+        val scale = minOf((size.width - 2 * padding) / chart.width, (size.height - 2 * padding) / chart.height).toFloat()
+        val left = (size.width - chart.width.toFloat() * scale) / 2f
+        val top = (size.height - chart.height.toFloat() * scale) / 2f
+        fun at(x: Double, y: Double) = Offset(left + x.toFloat() * scale, top + y.toFloat() * scale)
+
+        for (star in chart.stars) {
+            if (!star.inFigure) {
+                drawCircle(ChartContextStarColor, radius = chartStarRadius(star.vmag, inFigure = false).toPx(), center = at(star.x, star.y))
+            }
+        }
+        for (segment in chart.segments) {
+            drawLine(ChartLineColor, at(segment.x1, segment.y1), at(segment.x2, segment.y2), strokeWidth = 1.2.dp.toPx())
+        }
+        for (star in chart.stars) {
+            if (star.inFigure) {
+                drawCircle(ChartFigureStarColor, radius = chartStarRadius(star.vmag, inFigure = true).toPx(), center = at(star.x, star.y))
+            }
+        }
+    }
+}
+
+/** A dot for a star: bigger for brighter ones, with a floor so the faint stars of a figure stay visible. */
+private fun chartStarRadius(vmag: Double, inFigure: Boolean): Dp {
+    val brightness = (5.0 - vmag).coerceIn(0.0, 6.0).toFloat() // 0 at magnitude 5, 6 at magnitude -1
+    return if (inFigure) (1.3f + 0.45f * brightness).dp else (0.6f + 0.1f * brightness).dp
+}
+
+/**
  * Details of the tapped Sun, Moon or planet: name, phase name, magnitude and where it is now, then
  * (when [expanded]) its illuminated fraction, elongation, distance, apparent size, coordinates and
  * rise and set times.
@@ -245,7 +392,7 @@ fun BodyInfoCard(
 /**
  * The frame shared by both cards: [header] and a close button always, then the toggle row, and
  * [details] between them while [expanded]. The details scroll if they are taller than
- * [DetailRowsMaxHeight]. Whether it is expanded is the caller's, so it can persist across taps.
+ * [detailsMaxHeight]. Whether it is expanded is the caller's, so it can persist across taps.
  */
 @Composable
 private fun ObjectCard(
@@ -255,6 +402,7 @@ private fun ObjectCard(
     header: @Composable ColumnScope.() -> Unit,
     details: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
+    detailsMaxHeight: Dp = DetailRowsMaxHeight,
 ) {
     val closeDescription = stringResource(R.string.detail_close)
     Column(
@@ -282,7 +430,7 @@ private fun ObjectCard(
             Column(
                 modifier = Modifier
                     .padding(end = 12.dp)
-                    .heightIn(max = DetailRowsMaxHeight)
+                    .heightIn(max = detailsMaxHeight)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 content = details,
@@ -325,11 +473,15 @@ private fun DetailRow(label: String, value: String) {
 
 /** "42.3° above the horizon · 135.2° SE"; nothing until the observer's location is known. */
 @Composable
-private fun PositionSummary(placement: SkyPlacement?) {
+private fun PositionSummary(
+    placement: SkyPlacement?,
+    aboveRes: Int = R.string.detail_above_horizon,
+    belowRes: Int = R.string.detail_below_horizon,
+) {
     if (placement == null) return
     Text(
         text = stringResource(
-            if (placement.altitudeDeg >= 0) R.string.detail_above_horizon else R.string.detail_below_horizon,
+            if (placement.altitudeDeg >= 0) aboveRes else belowRes,
             abs(placement.altitudeDeg),
             placement.azimuthDeg,
             stringResource(CompassPoint.of(placement.azimuthDeg).nameRes()),

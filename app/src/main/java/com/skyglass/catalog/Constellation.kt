@@ -40,3 +40,17 @@ object ConstellationParser {
         return Constellation(parts[0].trim(), parts[1].trim(), parts[2].trim(), polylines)
     }
 }
+
+/** Names of constellations that have more than one figure. */
+object ConstellationNames {
+
+    /**
+     * The name of the constellation that [figures] (those sharing one abbreviation) make up. Serpens has
+     * two figures with their own names ("Serpens Caput", "Serpens Cauda"); the constellation's name is
+     * the part they share, word by word ("Serpens"). With one figure it is that figure's name.
+     */
+    fun common(figures: List<Constellation>): String =
+        figures.map { it.name.split(" ") }
+            .reduce { a, b -> a.zip(b).takeWhile { (x, y) -> x == y }.map { it.first } }
+            .joinToString(" ")
+}

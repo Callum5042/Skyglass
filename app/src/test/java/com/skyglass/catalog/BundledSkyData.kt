@@ -8,6 +8,7 @@ class BundledSkyData private constructor(
     val constellations: List<Constellation>,
     val properNames: List<ProperName>,
     val deepSky: List<DeepSkyObject>,
+    val constellationLore: List<ConstellationLore>,
 ) {
     val nakedEye: List<Star> = allStars.filter { it.vmag <= StarAppearance.MAGNITUDE_LIMIT }
 
@@ -19,6 +20,7 @@ class BundledSkyData private constructor(
             constellations = File(assets, StarCatalog.CONSTELLATIONS_ASSET_NAME).useLines(Charsets.UTF_8) { ConstellationParser.parse(it) },
             properNames = File(assets, StarCatalog.STAR_NAMES_ASSET_NAME).useLines(Charsets.UTF_8) { ProperNameParser.parse(it) },
             deepSky = File(assets, StarCatalog.DEEP_SKY_ASSET_NAME).useLines(Charsets.UTF_8) { DeepSkyParser.parse(it) },
+            constellationLore = File(assets, StarCatalog.CONSTELLATION_LORE_ASSET_NAME).useLines(Charsets.UTF_8) { ConstellationLoreParser.parse(it) },
         )
     }
 }

@@ -252,10 +252,11 @@ class SkyRenderer(
         // The horizon and grid next.
         drawGuides(cameraModeUniform, inputs.showHorizon, inputs.showGrid)
 
-        // Constellation lines next, so stars are drawn over them.
+        // Constellation lines next, so stars are drawn over them. A selected constellation is lit
+        // even when the lines are switched off, since the user has just asked for that one.
         inputs.constellationLines?.let { lines ->
             if (lines !== uploadedLines) uploadLines(lines)
-            drawLines(cameraModeUniform)
+            drawLines(cameraModeUniform, inputs.showConstellations, inputs.highlightedConstellation)
         }
 
         // Deep-sky objects over the lines and under the stars, which are what the eye goes to.
@@ -478,18 +479,35 @@ class SkyRenderer(
         )
     }
 
-    private fun drawLines(cameraModeUniform: Float) {
-        if (lineVertexCount == 0) return
+    /**
+     * The constellation lines ([showAll]) and then, over them, the [highlight] ranges (vertex ranges
+     * of the selected constellation, see `SkyRenderInputs.highlightedConstellation`) in the highlight
+     * colour, 2 px wide where the GPU allows wide lines.
+     */
+    private fun drawLines(cameraModeUniform: Float, showAll: Boolean, highlight: IntArray?) {
+        if (lineVertexCount == 0 || (!showAll && (highlight == null || highlight.isEmpty()))) return
         lineProgram.use()
         GLES30.glUniformMatrix4fv(uLineMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uLineCameraMode, cameraModeUniform)
-        GLES30.glUniform3f(uLineColor, LineShaders.LINE_RED, LineShaders.LINE_GREEN, LineShaders.LINE_BLUE)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, lineVbo)
         GLES30.glEnableVertexAttribArray(LineShaders.ATTRIB_POSITION)
         GLES30.glVertexAttribPointer(
             LineShaders.ATTRIB_POSITION, ConstellationSky.FLOATS_PER_VERTEX, GLES30.GL_FLOAT, false, 0, 0,
         )
-        GLES30.glDrawArrays(GLES30.GL_LINES, 0, lineVertexCount)
+        if (showAll) {
+            GLES30.glUniform3f(uLineColor, LineShaders.LINE_RED, LineShaders.LINE_GREEN, LineShaders.LINE_BLUE)
+            GLES30.glDrawArrays(GLES30.GL_LINES, 0, lineVertexCount)
+        }
+        if (highlight != null && highlight.isNotEmpty()) {
+            GLES30.glLineWidth(HIGHLIGHT_LINE_WIDTH_PX) // clamped by the GPU; many only draw 1 px
+            GLES30.glUniform3f(uLineColor, LineShaders.HIGHLIGHT_RED, LineShaders.HIGHLIGHT_GREEN, LineShaders.HIGHLIGHT_BLUE)
+            for (i in 0 until highlight.size / 2) {
+                val first = highlight[2 * i]
+                val count = min(highlight[2 * i + 1], lineVertexCount - first)
+                if (first >= 0 && count > 0) GLES30.glDrawArrays(GLES30.GL_LINES, first, count)
+            }
+            GLES30.glLineWidth(1f)
+        }
     }
 
     private fun uploadLines(lines: FloatArray) {
@@ -526,6 +544,9 @@ class SkyRenderer(
 
         /** Keeps the shader's smoothstep well defined if the Moon would be vanishingly small. */
         const val MIN_MOON_OCCLUDER = 0.05
+
+        /** Asked of the GPU for a selected constellation's lines; as for the horizon, 1 px is what many devices give. */
+        const val HIGHLIGHT_LINE_WIDTH_PX = 2f
 
         /** Asked of the GPU for the horizon; devices without wide lines draw 1 px and rely on its brightness. */
         const val HORIZON_LINE_WIDTH_PX = 2f

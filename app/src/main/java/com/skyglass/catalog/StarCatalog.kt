@@ -6,6 +6,7 @@ object StarCatalog {
 
     const val ASSET_NAME = "bsc5.dat"
     const val CONSTELLATIONS_ASSET_NAME = "constellations.txt"
+    const val CONSTELLATION_LORE_ASSET_NAME = "constellation_lore.txt"
     const val STAR_NAMES_ASSET_NAME = "star_names.txt"
     const val DEEP_SKY_ASSET_NAME = "deep_sky.txt"
 
@@ -18,6 +19,10 @@ object StarCatalog {
     /** Blocking; call off the main thread. */
     fun loadConstellations(assets: AssetManager): List<Constellation> =
         assets.open(CONSTELLATIONS_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ConstellationParser::parse)
+
+    /** Blocking; call off the main thread. */
+    fun loadConstellationLore(assets: AssetManager): List<ConstellationLore> =
+        assets.open(CONSTELLATION_LORE_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ConstellationLoreParser::parse)
 
     /** Blocking; call off the main thread. */
     fun loadProperNames(assets: AssetManager): List<ProperName> =

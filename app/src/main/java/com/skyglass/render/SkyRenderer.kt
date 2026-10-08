@@ -6,6 +6,10 @@ import com.skyglass.astro.AstroTime
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.BodyVertices
 import com.skyglass.catalog.ConstellationSky
+import com.skyglass.catalog.DeepSkyAppearance
+import com.skyglass.catalog.DeepSkyVertices
+import com.skyglass.catalog.MilkyWayAppearance
+import com.skyglass.catalog.MilkyWayMesh
 import com.skyglass.catalog.StarVertices
 import com.skyglass.math.Matrix4
 import com.skyglass.math.Quaternion
@@ -19,8 +23,8 @@ import kotlin.math.min
 import kotlin.math.tan
 
 /**
- * Draws the horizon and reference grid, the constellation lines, the star field, then the Sun, Moon
- * and planets. Stars, lines and bodies live in VBOs in the equatorial frame of date; each frame only
+ * Draws the Milky Way band, the horizon and reference grid, the constellation lines, the deep-sky
+ * objects, the star field, then the Sun, Moon and planets. Stars, lines and bodies live in VBOs in the equatorial frame of date; each frame only
  * the MVP matrix changes, built by [SkyViewMath]. The horizon guides are fixed to the observer, so
  * they live in true ENU and are drawn with the same view minus the sky's rotation
  * ([SkyViewMath.horizonModelViewProjection]). The star, line and guide buffers are static; the body
@@ -80,6 +84,26 @@ class SkyRenderer(
     private var moonDirection: Vector3? = null
     private var moonSunDirection: Vector3? = null
 
+    // Deep-sky objects: two triangles each, built in the vertex shader (see DeepSkyShaders).
+    private lateinit var deepSkyProgram: ShaderProgram
+    private var uDeepSkyMvp = -1
+    private var uDeepSkyFocalPx = -1
+    private var uDeepSkyMinRadiusPx = -1
+    private var uDeepSkyCameraMode = -1
+    private var deepSkyVbo = 0
+    private var uploadedDeepSky: FloatArray? = null
+    private var deepSkyVertexCount = 0
+
+    // The Milky Way band: an indexed triangle mesh.
+    private lateinit var milkyWayProgram: ShaderProgram
+    private var uMilkyWayMvp = -1
+    private var uMilkyWayGain = -1
+    private var uMilkyWayCameraMode = -1
+    private var milkyWayVbo = 0
+    private var milkyWayIbo = 0
+    private var uploadedMilkyWay: MilkyWayMesh? = null
+    private var milkyWayIndexCount = 0
+
     private var viewportWidth = 1
     private var viewportHeight = 1
     private var aspect = 1.0
@@ -110,14 +134,30 @@ class SkyRenderer(
         uBodyMoonOccluder = bodyProgram.uniformLocation("uMoonOccluder")
         uBodyCameraMode = bodyProgram.uniformLocation("uCameraMode")
 
-        val ids = IntArray(4)
-        GLES30.glGenBuffers(4, ids, 0)
+        deepSkyProgram = ShaderProgram(DeepSkyShaders.VERTEX, DeepSkyShaders.FRAGMENT)
+        uDeepSkyMvp = deepSkyProgram.uniformLocation("uMvp")
+        uDeepSkyFocalPx = deepSkyProgram.uniformLocation("uFocalPx")
+        uDeepSkyMinRadiusPx = deepSkyProgram.uniformLocation("uMinRadiusPx")
+        uDeepSkyCameraMode = deepSkyProgram.uniformLocation("uCameraMode")
+
+        milkyWayProgram = ShaderProgram(MilkyWayShaders.VERTEX, MilkyWayShaders.FRAGMENT)
+        uMilkyWayMvp = milkyWayProgram.uniformLocation("uMvp")
+        uMilkyWayGain = milkyWayProgram.uniformLocation("uGain")
+        uMilkyWayCameraMode = milkyWayProgram.uniformLocation("uCameraMode")
+
+        val ids = IntArray(7)
+        GLES30.glGenBuffers(7, ids, 0)
         vbo = ids[0]
         lineVbo = ids[1]
         bodyVbo = ids[2]
         guideVbo = ids[3]
+        deepSkyVbo = ids[4]
+        milkyWayVbo = ids[5]
+        milkyWayIbo = ids[6]
         // A new context has empty buffers, even if the data was uploaded to a previous one.
         guidesUploaded = false
+        uploadedDeepSky = null
+        uploadedMilkyWay = null
         uploadedVertices = null
         uploadedLines = null
         uploadedBodies = null
@@ -158,6 +198,8 @@ class SkyRenderer(
         GLES30.glClearColor(0f, 0f, 0f, if (cameraMode) 0f else 1f)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         val cameraModeUniform = if (cameraMode) 1f else 0f
+        // Each pass enables the vertex arrays it uses; none may inherit another pass's, whose buffer may be smaller.
+        for (attribute in 0..MAX_VERTEX_ATTRIBUTE) GLES30.glDisableVertexAttribArray(attribute)
         setBlending(OverlayBlend.stars(cameraMode))
         filter.timeConstantSeconds = if (cameraMode) {
             OrientationFilter.CAMERA_TIME_CONSTANT_SECONDS
@@ -204,7 +246,10 @@ class SkyRenderer(
         inputs.lastHorizonMvp = horizonMvp
         horizonMvp.toColumnMajorFloatArray(horizonMvpFloats)
 
-        // The horizon and grid first, under everything else.
+        // The Milky Way is the faintest and widest thing on the sky: first, under everything else.
+        if (inputs.showMilkyWay) inputs.milkyWayMesh?.let { drawMilkyWay(it, cameraMode, cameraModeUniform) }
+
+        // The horizon and grid next.
         drawGuides(cameraModeUniform, inputs.showHorizon, inputs.showGrid)
 
         // Constellation lines next, so stars are drawn over them.
@@ -212,6 +257,9 @@ class SkyRenderer(
             if (lines !== uploadedLines) uploadLines(lines)
             drawLines(cameraModeUniform)
         }
+
+        // Deep-sky objects over the lines and under the stars, which are what the eye goes to.
+        if (inputs.showDeepSky) inputs.deepSkyVertices?.let { drawDeepSky(it, fovYDeg, cameraModeUniform) }
 
         program.use()
         GLES30.glUniformMatrix4fv(uMvp, 1, false, mvpFloats, 0)
@@ -231,6 +279,87 @@ class SkyRenderer(
             if (bodies !== uploadedBodies) uploadBodies(bodies)
             drawBodies(mvp, fovYDeg, cameraModeUniform)
         }
+    }
+
+    /**
+     * The Milky Way band, with the blending of the stars. Over a camera image it is drawn at
+     * [MilkyWayAppearance.CAMERA_GAIN] of its strength so the image stays readable.
+     */
+    private fun drawMilkyWay(mesh: MilkyWayMesh, cameraMode: Boolean, cameraModeUniform: Float) {
+        if (mesh !== uploadedMilkyWay) uploadMilkyWay(mesh)
+        milkyWayProgram.use()
+        GLES30.glUniformMatrix4fv(uMilkyWayMvp, 1, false, mvpFloats, 0)
+        GLES30.glUniform1f(uMilkyWayGain, if (cameraMode) MilkyWayAppearance.CAMERA_GAIN else 1f)
+        GLES30.glUniform1f(uMilkyWayCameraMode, cameraModeUniform)
+        val stride = MilkyWayMesh.FLOATS_PER_VERTEX * Float.SIZE_BYTES
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, milkyWayVbo)
+        GLES30.glEnableVertexAttribArray(MilkyWayShaders.ATTRIB_POSITION)
+        GLES30.glVertexAttribPointer(
+            MilkyWayShaders.ATTRIB_POSITION, 3, GLES30.GL_FLOAT, false, stride, MilkyWayMesh.POSITION_OFFSET * Float.SIZE_BYTES,
+        )
+        GLES30.glEnableVertexAttribArray(MilkyWayShaders.ATTRIB_COLOR)
+        GLES30.glVertexAttribPointer(
+            MilkyWayShaders.ATTRIB_COLOR, 3, GLES30.GL_FLOAT, false, stride, MilkyWayMesh.COLOR_OFFSET * Float.SIZE_BYTES,
+        )
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, milkyWayIbo)
+        GLES30.glDrawElements(GLES30.GL_TRIANGLES, milkyWayIndexCount, GLES30.GL_UNSIGNED_SHORT, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
+        // Later passes use this slot with an array of their own, or none.
+        GLES30.glDisableVertexAttribArray(MilkyWayShaders.ATTRIB_COLOR)
+    }
+
+    private fun uploadMilkyWay(mesh: MilkyWayMesh) {
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, milkyWayVbo)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, mesh.vertices.size * Float.SIZE_BYTES, toBuffer(mesh.vertices), GLES30.GL_STATIC_DRAW)
+        val indexBuffer = ByteBuffer.allocateDirect(mesh.indices.size * Short.SIZE_BYTES)
+            .order(ByteOrder.nativeOrder())
+            .asShortBuffer()
+            .put(mesh.indices)
+            .also { it.position(0) }
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, milkyWayIbo)
+        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size * Short.SIZE_BYTES, indexBuffer, GLES30.GL_STATIC_DRAW)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
+        uploadedMilkyWay = mesh
+        milkyWayIndexCount = mesh.indices.size
+    }
+
+    /** Deep-sky symbols, with the blending of the stars; the vertex shader sizes them from the focal length in pixels. */
+    private fun drawDeepSky(vertices: FloatArray, fovYDeg: Double, cameraModeUniform: Float) {
+        if (vertices !== uploadedDeepSky) uploadDeepSky(vertices)
+        if (deepSkyVertexCount == 0) return
+        deepSkyProgram.use()
+        GLES30.glUniformMatrix4fv(uDeepSkyMvp, 1, false, mvpFloats, 0)
+        GLES30.glUniform1f(uDeepSkyFocalPx, ((viewportHeight / 2.0) / tan(Math.toRadians(fovYDeg / 2))).toFloat())
+        GLES30.glUniform1f(uDeepSkyMinRadiusPx, DeepSkyAppearance.MIN_RADIUS_DP * pointScale)
+        GLES30.glUniform1f(uDeepSkyCameraMode, cameraModeUniform)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, deepSkyVbo)
+        bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_POSITION, 3, DeepSkyVertices.POSITION_OFFSET)
+        bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_CORNER, 2, DeepSkyVertices.CORNER_OFFSET)
+        bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_SEMI_MAJOR, 1, DeepSkyVertices.SEMI_MAJOR_OFFSET)
+        bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_SEMI_MINOR, 1, DeepSkyVertices.SEMI_MINOR_OFFSET)
+        bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_POSITION_ANGLE, 1, DeepSkyVertices.POSITION_ANGLE_OFFSET)
+        bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_COLOR, 3, DeepSkyVertices.COLOR_OFFSET)
+        bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_GLYPH, 1, DeepSkyVertices.GLYPH_OFFSET)
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, deepSkyVertexCount)
+        // Later passes must not be left with enabled arrays that run past the end of this small buffer.
+        for (attribute in DeepSkyShaders.ATTRIB_CORNER..DeepSkyShaders.ATTRIB_GLYPH) {
+            GLES30.glDisableVertexAttribArray(attribute)
+        }
+    }
+
+    private fun uploadDeepSky(vertices: FloatArray) {
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, deepSkyVbo)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, vertices.size * Float.SIZE_BYTES, toBuffer(vertices), GLES30.GL_STATIC_DRAW)
+        uploadedDeepSky = vertices
+        deepSkyVertexCount = vertices.size / DeepSkyVertices.FLOATS_PER_VERTEX
+    }
+
+    private fun bindDeepSkyAttribute(location: Int, size: Int, offsetFloats: Int) {
+        GLES30.glEnableVertexAttribArray(location)
+        GLES30.glVertexAttribPointer(
+            location, size, GLES30.GL_FLOAT, false,
+            DeepSkyVertices.FLOATS_PER_VERTEX * Float.SIZE_BYTES, offsetFloats * Float.SIZE_BYTES,
+        )
     }
 
     /**
@@ -392,6 +521,9 @@ class SkyRenderer(
     }
 
     private companion object {
+        /** The highest vertex attribute slot any pass uses (the deep-sky pass uses 0 to 6). */
+        const val MAX_VERTEX_ATTRIBUTE = 6
+
         /** Keeps the shader's smoothstep well defined if the Moon would be vanishingly small. */
         const val MIN_MOON_OCCLUDER = 0.05
 

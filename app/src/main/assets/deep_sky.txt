@@ -1,0 +1,207 @@
+# Deep-sky objects: ids|Name|Aliases|Type|RA J2000|Dec J2000|Vmag|Major'|Minor'|PA|Constellation
+#
+#  ids        catalogue designations, ';'-separated, the first is the one shown ("M31;NGC 224")
+#  Name       common name, may be empty
+#  Aliases    other names people search for, ';'-separated, may be empty
+#  Type       GAL galaxy, GC globular cluster, OC open cluster, EN emission nebula (HII region),
+#             RN reflection nebula, PN planetary nebula, SNR supernova remnant, DN dark nebula,
+#             SC star cloud, AST asterism, DBL double star
+#  RA, Dec    J2000 mean equator and equinox, hh:mm:ss.s and +dd:mm:ss
+#  Vmag       integrated visual magnitude, empty if none is quoted (dark nebulae)
+#  Major'     apparent size in arcminutes (long axis); Minor' the short axis (empty: same as major)
+#  PA         position angle of the long axis in degrees, from north through east; empty when it is
+#             not known or the object is nearly round (it is then drawn round)
+#  Constellation  full IAU name
+#
+# Sources and licence: see "Deep-sky objects" in CLAUDE.md. Positions, magnitudes and sizes are
+# astronomical facts compiled from the standard catalogues (Messier 1781-1782 with the modern NGC
+# identifications; NGC/IC; the Caldwell list), not copied from any database file or its layout.
+# Messier rows were transcribed from published Messier tables; the other rows are hand-tabulated
+# and are good to a few arcminutes in position and a few tenths in magnitude. Sizes and position
+# angles are approximate. Do not treat this file as a research catalogue.
+#
+# --- Messier catalogue ---
+M1;NGC 1952|Crab Nebula||SNR|05:34:31.9|+22:00:52|8.4|7.0|4.8||Taurus
+M2;NGC 7089|||GC|21:33:27.0|-00:49:24|6.5|16|||Aquarius
+M3;NGC 5272|||GC|13:42:11.6|+28:22:38|6.2|18|||Canes Venatici
+M4;NGC 6121|||GC|16:23:35.2|-26:31:33|5.6|26|||Scorpius
+M5;NGC 5904|||GC|15:18:33.2|+02:04:52|5.6|23|||Serpens
+M6;NGC 6405|Butterfly Cluster||OC|17:40:06|-32:13:00|4.2|25|||Scorpius
+M7;NGC 6475|Ptolemy Cluster||OC|17:53:51.2|-34:47:34|3.3|80|||Scorpius
+M8;NGC 6523|Lagoon Nebula||EN|18:03:37|-24:23:12|6.0|90|40||Sagittarius
+M9;NGC 6333|||GC|17:19:11.8|-18:30:58|7.7|9.3|||Ophiuchus
+M10;NGC 6254|||GC|16:57:08.9|-04:05:58|6.6|20|||Ophiuchus
+M11;NGC 6705|Wild Duck Cluster||OC|18:51:06|-06:16:00|5.8|22.8|||Scutum
+M12;NGC 6218|||GC|16:47:14.2|-01:56:55|6.7|16|||Ophiuchus
+M13;NGC 6205|Hercules Globular Cluster|Great Hercules Cluster|GC|16:41:41.2|+36:27:36|5.8|20|||Hercules
+M14;NGC 6402|||GC|17:37:36.2|-03:14:45|7.6|11|||Ophiuchus
+M15;NGC 7078|||GC|21:29:58.3|+12:10:01|6.2|18|||Pegasus
+M16;NGC 6611|Eagle Nebula||EN|18:18:48|-13:49:00|6.4|70|50||Serpens
+M17;NGC 6618|Omega Nebula|Swan Nebula;Horseshoe Nebula|EN|18:20:26|-16:10:36|6.0|11|||Sagittarius
+M18;NGC 6613|||OC|18:19:54|-17:08:00|7.5|9.8|||Sagittarius
+M19;NGC 6273|||GC|17:02:37.7|-26:16:05|6.8|17|||Ophiuchus
+M20;NGC 6514|Trifid Nebula||EN|18:02:23|-23:01:48|6.3|28|||Sagittarius
+M21;NGC 6531|||OC|18:04:36|-22:30:00|6.5|14|||Sagittarius
+M22;NGC 6656|Sagittarius Cluster|Great Sagittarius Cluster|GC|18:36:23.9|-23:54:17|5.1|32|||Sagittarius
+M23;NGC 6494|||OC|17:56:48|-19:01:00|5.5|35|||Sagittarius
+M24|Sagittarius Star Cloud|Small Sagittarius Star Cloud|SC|18:17:00|-18:33:00|4.6|120|60|28|Sagittarius
+M25;IC 4725|||OC|18:31:36|-19:15:00|4.6|36|||Sagittarius
+M26;NGC 6694|||OC|18:45:12|-09:24:00|8.0|14|||Scutum
+M27;NGC 6853|Dumbbell Nebula|Apple Core Nebula|PN|19:59:36.3|+22:43:16|7.4|8.0|5.6||Vulpecula
+M28;NGC 6626|||GC|18:24:32.9|-24:52:11|6.8|11.2|||Sagittarius
+M29;NGC 6913|||OC|20:23:56|+38:31:24|7.1|7|||Cygnus
+M30;NGC 7099|||GC|21:40:22.1|-23:10:48|7.2|12|||Capricornus
+M31;NGC 224|Andromeda Galaxy|Great Andromeda Galaxy;Great Nebula in Andromeda|GAL|00:42:44.3|+41:16:09|3.4|190|60|35|Andromeda
+M32;NGC 221|||GAL|00:42:41.8|+40:51:55|8.1|8.7|6.5|170|Andromeda
+M33;NGC 598|Triangulum Galaxy||GAL|01:33:50.0|+30:39:37|5.7|70.8|41.7|23|Triangulum
+M34;NGC 1039|||OC|02:42:06|+42:46:00|5.5|35|||Perseus
+M35;NGC 2168|||OC|06:09:06|+24:21:00|5.3|28|||Gemini
+M36;NGC 1960|||OC|05:36:12|+34:08:04|6.3|12|||Auriga
+M37;NGC 2099|||OC|05:52:18|+32:33:02|6.2|24|||Auriga
+M38;NGC 1912|||OC|05:28:42|+35:51:18|7.4|21|||Auriga
+M39;NGC 7092|||OC|21:31:42|+48:26:00|4.6|29|||Cygnus
+M40|Winnecke 4||DBL|12:22:12.5|+58:04:59|8.4|0.9|||Ursa Major
+M41;NGC 2287|||OC|06:46:00|-20:46:00|4.5|38|||Canis Major
+M42;NGC 1976|Orion Nebula|Great Nebula in Orion|EN|05:35:17.3|-05:23:28|4.0|65|60||Orion
+M43;NGC 1982|De Mairan's Nebula||EN|05:35:36|-05:16:00|9.0|20|15||Orion
+M44;NGC 2632|Beehive Cluster|Praesepe|OC|08:40:24|+19:59:00|3.7|95|||Cancer
+M45|Pleiades|Seven Sisters;Subaru|OC|03:47:24|+24:07:00|1.6|120|||Taurus
+M46;NGC 2437|||OC|07:41:48|-14:49:00|6.0|22.8|||Puppis
+M47;NGC 2422|||OC|07:36:36|-14:30:00|4.4|30|||Puppis
+M48;NGC 2548|||OC|08:13:42|-05:45:00|5.5|30|||Hydra
+M49;NGC 4472|||GAL|12:29:46.7|+08:00:02|8.4|10.2|8.3||Virgo
+M50;NGC 2323|||OC|07:03:12|-08:20:00|5.9|16|||Monoceros
+M51;NGC 5194|Whirlpool Galaxy||GAL|13:29:52.7|+47:11:43|8.4|11.2|6.9|163|Canes Venatici
+M52;NGC 7654|||OC|23:24:12|+61:35:00|7.3|13|||Cassiopeia
+M53;NGC 5024|||GC|13:12:55.3|+18:10:05|7.6|13|||Coma Berenices
+M54;NGC 6715|||GC|18:55:03.3|-30:28:47|7.6|12|||Sagittarius
+M55;NGC 6809|||GC|19:39:59.7|-30:57:53|6.3|19|||Sagittarius
+M56;NGC 6779|||GC|19:16:35.6|+30:11:01|8.3|8.8|||Lyra
+M57;NGC 6720|Ring Nebula||PN|18:53:35.1|+33:01:45|8.8|3.8|||Lyra
+M58;NGC 4579|||GAL|12:37:43.5|+11:49:05|9.7|5.9|4.7|5|Virgo
+M59;NGC 4621|||GAL|12:42:02.3|+11:38:49|9.6|5.4|3.7|165|Virgo
+M60;NGC 4649|||GAL|12:43:39.6|+11:33:09|8.8|7.4|6.0||Virgo
+M61;NGC 4303|||GAL|12:21:54.9|+04:28:25|9.7|6.5|5.8||Virgo
+M62;NGC 6266|||GC|17:01:12.6|-30:06:44|6.5|15|||Ophiuchus
+M63;NGC 5055|Sunflower Galaxy||GAL|13:15:49.3|+42:01:45|8.6|12.6|7.2|105|Canes Venatici
+M64;NGC 4826|Black Eye Galaxy||GAL|12:56:43.7|+21:40:58|8.5|10.7|5.1|115|Coma Berenices
+M65;NGC 3623|||GAL|11:18:55.9|+13:05:32|9.3|8.7|2.5|174|Leo
+M66;NGC 3627|||GAL|11:20:15.0|+12:59:30|8.9|9.1|4.2|173|Leo
+M67;NGC 2682|||OC|08:51:18|+11:49:00|6.1|30|||Cancer
+M68;NGC 4590|||GC|12:39:28.0|-26:44:39|7.8|11|||Hydra
+M69;NGC 6637|||GC|18:31:23.1|-32:20:53|7.6|10.8|||Sagittarius
+M70;NGC 6681|||GC|18:43:12.8|-32:17:32|7.9|8|||Sagittarius
+M71;NGC 6838|||GC|19:53:46.5|+18:46:45|8.2|7.2|||Sagitta
+M72;NGC 6981|||GC|20:53:27.7|-12:32:14|9.3|6.6|||Aquarius
+M73;NGC 6994|||AST|20:58:54|-12:38:00|9.0|2.8|||Aquarius
+M74;NGC 628|Phantom Galaxy||GAL|01:36:41.8|+15:47:01|9.4|10.5|9.5||Pisces
+M75;NGC 6864|||GC|20:06:04.8|-21:55:16|8.5|6.8|||Sagittarius
+M76;NGC 650|Little Dumbbell Nebula|Barbell Nebula|PN|01:42:24|+51:34:31|10.1|2.7|1.8||Perseus
+M77;NGC 1068|||GAL|02:42:40.7|-00:00:48|8.9|7.1|6.0|70|Cetus
+M78;NGC 2068|||RN|05:46:46.7|+00:00:50|8.3|8|6||Orion
+M79;NGC 1904|||GC|05:24:10.6|-24:31:27|7.7|8.7|||Lepus
+M80;NGC 6093|||GC|16:17:02.4|-22:58:34|7.3|10|||Scorpius
+M81;NGC 3031|Bode's Galaxy||GAL|09:55:33.2|+69:03:55|6.9|26.9|14.1|157|Ursa Major
+M82;NGC 3034|Cigar Galaxy||GAL|09:55:52.2|+69:40:47|8.4|11.2|4.3|65|Ursa Major
+M83;NGC 5236|Southern Pinwheel Galaxy||GAL|13:37:00.9|-29:51:57|7.6|12.9|11.5|45|Hydra
+M84;NGC 4374|||GAL|12:25:03.7|+12:53:13|9.1|6.5|5.6||Virgo
+M85;NGC 4382|||GAL|12:25:24.0|+18:11:28|9.1|7.1|5.5|35|Coma Berenices
+M86;NGC 4406|||GAL|12:26:11.7|+12:56:46|8.9|8.9|5.8|55|Virgo
+M87;NGC 4486|Virgo A||GAL|12:30:49.4|+12:23:28|8.6|7.2|6.8||Virgo
+M88;NGC 4501|||GAL|12:31:59.2|+14:25:14|9.6|6.9|3.7|130|Coma Berenices
+M89;NGC 4552|||GAL|12:35:39.8|+12:33:23|9.8|5.1|4.7||Virgo
+M90;NGC 4569|||GAL|12:36:49.8|+13:09:46|9.5|9.5|4.4|150|Virgo
+M91;NGC 4548|||GAL|12:35:26.4|+14:29:47|10.2|5.4|4.3||Coma Berenices
+M92;NGC 6341|||GC|17:17:07.4|+43:08:09|6.4|14|||Hercules
+M93;NGC 2447|||OC|07:44:36|-23:52:00|6.0|10|||Puppis
+M94;NGC 4736|Cat's Eye Galaxy||GAL|12:50:53.1|+41:07:14|8.2|11.2|9.1||Canes Venatici
+M95;NGC 3351|||GAL|10:43:57.7|+11:42:14|9.7|3.1|2.9||Leo
+M96;NGC 3368|||GAL|10:46:45.7|+11:49:12|9.2|7.6|5.2|172|Leo
+M97;NGC 3587|Owl Nebula||PN|11:14:47.7|+55:01:08|9.9|3.4|3.3||Ursa Major
+M98;NGC 4192|||GAL|12:13:48.3|+14:54:02|10.1|9.8|2.8|153|Coma Berenices
+M99;NGC 4254|Coma Pinwheel||GAL|12:18:49.6|+14:24:59|9.9|5.4|4.7||Coma Berenices
+M100;NGC 4321|||GAL|12:22:54.9|+15:49:21|9.3|7.4|6.3||Coma Berenices
+M101;NGC 5457|Pinwheel Galaxy||GAL|14:03:12.6|+54:20:57|7.9|28.8|26.9||Ursa Major
+M102;NGC 5866|Spindle Galaxy||GAL|15:06:29.5|+55:45:48|9.9|4.7|1.9|128|Draco
+M103;NGC 581|||OC|01:33:12|+60:42:00|7.4|6|||Cassiopeia
+M104;NGC 4594|Sombrero Galaxy||GAL|12:39:59.4|-11:37:23|8.0|9|4|89|Virgo
+M105;NGC 3379|||GAL|10:47:49.6|+12:34:54|9.3|5.4|4.8||Leo
+M106;NGC 4258|||GAL|12:18:57.5|+47:18:14|8.4|18.6|7.2|150|Canes Venatici
+M107;NGC 6171|||GC|16:32:31.9|-13:03:14|7.9|10|||Ophiuchus
+M108;NGC 3556|Surfboard Galaxy||GAL|11:11:31.0|+55:40:27|10.0|8.7|2.2|80|Ursa Major
+M109;NGC 3992|||GAL|11:57:36.0|+53:22:28|9.8|7.6|4.7||Ursa Major
+M110;NGC 205|||GAL|00:40:22.1|+41:41:07|8.5|21.9|11.0|170|Andromeda
+#
+# --- Magellanic Clouds and other galaxies ---
+LMC|Large Magellanic Cloud|LMC|GAL|05:23:34.5|-69:45:22|0.9|645|550||Dorado
+SMC|Small Magellanic Cloud|SMC|GAL|00:52:44.8|-72:49:43|2.7|320|205|45|Tucana
+NGC 253;C 65|Sculptor Galaxy|Silver Coin Galaxy|GAL|00:47:33.1|-25:17:18|7.1|27.5|6.8|52|Sculptor
+NGC 5128;C 77|Centaurus A||GAL|13:25:27.6|-43:01:09|6.8|25.7|20.0|35|Centaurus
+NGC 55;C 72|||GAL|00:14:53.6|-39:11:48|7.9|32|6|108|Sculptor
+NGC 300;C 70|||GAL|00:54:53.5|-37:41:04|9.0|22|16.2|111|Sculptor
+NGC 247;C 62|||GAL|00:47:08.6|-20:45:37|8.9|21|8|174|Cetus
+NGC 4945;C 83|||GAL|13:05:27.5|-49:28:05|8.8|20|3.8|43|Centaurus
+NGC 6744;C 101|||GAL|19:09:46.1|-63:51:27|9.0|20|13|15|Pavo
+NGC 2403;C 7|||GAL|07:36:51.4|+65:36:09|8.4|21.9|12.3|127|Camelopardalis
+IC 342;C 5|Hidden Galaxy||GAL|03:46:48.5|+68:05:46|9.1|21.4|20.8||Camelopardalis
+NGC 6822;C 57|Barnard's Galaxy||GAL|19:44:56.6|-14:47:21|9.3|15.5|6.3|5|Sagittarius
+NGC 4565;C 38|Needle Galaxy||GAL|12:36:20.8|+25:59:16|9.6|15.9|1.9|135|Coma Berenices
+NGC 891;C 23|||GAL|02:22:33.4|+42:20:57|10.0|13.5|2.8|22|Andromeda
+NGC 7331;C 30|||GAL|22:37:04.1|+34:24:56|9.5|10.5|3.7|171|Pegasus
+NGC 4631;C 32|Whale Galaxy||GAL|12:42:08.0|+32:32:29|9.2|15.5|2.7|86|Canes Venatici
+NGC 6946;C 12|Fireworks Galaxy||GAL|20:34:52.3|+60:09:14|8.9|11.5|9.8||Cepheus
+NGC 2903|||GAL|09:32:10.1|+21:30:03|9.0|12.6|6.0|17|Leo
+NGC 3115;C 53|||GAL|10:05:14.0|-07:43:07|8.9|8.1|2.8|43|Sextans
+NGC 1097;C 67|||GAL|02:46:19.0|-30:16:30|9.3|9.3|6.6|130|Fornax
+#
+# --- Globular clusters ---
+NGC 5139;C 80|Omega Centauri||GC|13:26:45.9|-47:28:37|3.7|36|||Centaurus
+NGC 104;C 106|47 Tucanae||GC|00:24:05.4|-72:04:51|4.0|30|||Tucana
+NGC 6397;C 86|||GC|17:40:42.1|-53:40:28|5.7|26|||Ara
+NGC 6752;C 93|Great Peacock Globular||GC|19:10:52.1|-59:59:05|5.4|20|||Pavo
+NGC 362;C 104|||GC|01:03:14.3|-70:50:56|6.6|14|||Tucana
+NGC 3201;C 79|||GC|10:17:36.8|-46:24:40|6.8|18|||Vela
+NGC 2808|||GC|09:12:02.6|-64:51:47|6.2|14|||Carina
+NGC 1851;C 73|||GC|05:14:06.8|-40:02:48|7.3|11|||Columba
+#
+# --- Open clusters and asterisms ---
+Mel 25;C 41|Hyades||OC|04:26:54|+15:52:00|0.5|330|||Taurus
+NGC 869;C 14|Double Cluster (h Persei)|h Persei|OC|02:19:00|+57:09:00|3.7|30|||Perseus
+NGC 884;C 14|Double Cluster (chi Persei)|chi Persei|OC|02:22:18|+57:08:00|3.8|30|||Perseus
+Mel 20|Alpha Persei Cluster||OC|03:26:42|+48:48:00|1.2|300|||Perseus
+Mel 111|Coma Star Cluster||OC|12:22:30|+25:51:00|1.8|275|||Coma Berenices
+Cr 399|Coathanger|Brocchi's Cluster|AST|19:25:24|+20:11:00|3.6|60|||Vulpecula
+NGC 2244;C 50|Rosette Cluster||OC|06:32:19|+04:52:00|4.8|24|||Monoceros
+NGC 457;C 13|Owl Cluster|ET Cluster;Dragonfly Cluster|OC|01:19:35|+58:17:00|6.4|13|||Cassiopeia
+NGC 752;C 28|||OC|01:57:41|+37:47:06|5.7|50|||Andromeda
+NGC 6231;C 76|||OC|16:54:10|-41:49:30|2.6|15|||Scorpius
+NGC 3532;C 91|Wishing Well Cluster||OC|11:05:36|-58:44:30|3.0|55|||Carina
+NGC 2516;C 96|Southern Beehive Cluster||OC|07:58:04|-60:52:00|3.8|30|||Carina
+IC 2602;C 102|Southern Pleiades|Theta Carinae Cluster|OC|10:42:58|-64:24:00|1.9|100|||Carina
+IC 2391;C 85|Omicron Velorum Cluster||OC|08:40:32|-53:02:00|2.5|50|||Vela
+NGC 4755;C 94|Jewel Box|Kappa Crucis Cluster|OC|12:53:36|-60:22:00|4.2|10|||Crux
+NGC 2362;C 64|Tau Canis Majoris Cluster||OC|07:18:41|-24:57:18|4.1|8|||Canis Major
+NGC 6633|||OC|18:27:42|+06:34:00|4.6|27|||Ophiuchus
+IC 4756|||OC|18:38:31|+05:29:24|4.6|52|||Serpens
+NGC 7243;C 16|||OC|22:15:08|+49:53:54|6.4|21|||Lacerta
+NGC 2264|Christmas Tree Cluster|Cone Nebula|OC|06:40:52|+09:53:00|3.9|20|||Monoceros
+NGC 6025;C 95|||OC|16:03:42|-60:30:00|5.1|12|||Triangulum Australe
+NGC 3766;C 97|Pearl Cluster||OC|11:36:14|-61:37:00|5.3|12|||Centaurus
+NGC 6124;C 75|||OC|16:25:20|-40:40:00|5.8|29|||Scorpius
+NGC 6193;C 82|||OC|16:41:20|-48:46:00|5.2|14|||Ara
+NGC 2477;C 71|||OC|07:52:10|-38:33:00|5.8|27|||Puppis
+#
+# --- Nebulae ---
+NGC 3372;C 92|Carina Nebula|Eta Carinae Nebula|EN|10:45:08|-59:52:04|1.0|120|||Carina
+NGC 7000;C 20|North America Nebula||EN|20:58:47|+44:19:48|4.0|120|100||Cygnus
+NGC 6992;C 33|Eastern Veil Nebula|Veil Nebula;Cygnus Loop|SNR|20:56:24|+31:43:00|7.0|60|8||Cygnus
+NGC 6960;C 34|Western Veil Nebula|Veil Nebula;Witch's Broom Nebula;Cygnus Loop|SNR|20:45:42|+30:43:00|7.0|70|6||Cygnus
+NGC 2237;C 49|Rosette Nebula||EN|06:33:45|+04:59:54|9.0|80|||Monoceros
+NGC 2070;C 103|Tarantula Nebula|30 Doradus|EN|05:38:38|-69:05:42|8.0|40|25||Dorado
+NGC 7293;C 63|Helix Nebula||PN|22:29:38.6|-20:50:14|7.6|25|||Aquarius
+NGC 6543;C 6|Cat's Eye Nebula||PN|17:58:33.4|+66:37:59|8.1|0.3|||Draco
+NGC 2392;C 39|Eskimo Nebula|Clown Face Nebula|PN|07:29:10.8|+20:54:42|9.2|0.8|||Gemini
+NGC 7009;C 55|Saturn Nebula||PN|21:04:10.8|-11:21:49|8.0|0.5|||Aquarius
+NGC 3242;C 59|Ghost of Jupiter||PN|10:24:46.1|-18:38:33|7.8|0.7|||Hydra
+NGC 6826;C 15|Blinking Planetary||PN|19:44:48.2|+50:31:30|8.8|0.45|||Cygnus
+C 99|Coalsack Nebula|Coalsack|DN|12:50:00|-63:00:00||420|300||Crux

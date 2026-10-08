@@ -129,7 +129,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val localDensity = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val safeDrawing = WindowInsets.safeDrawing
-    val infoCardShowing = !searchOpen && (state.selectedStar != null || selectedBody != null)
+    val infoCardShowing = !searchOpen && (state.selectedStar != null || selectedBody != null || state.selectedDeepSky != null)
     val navigationInsets = with(localDensity) {
         val margin = NavigationArrowMargin.toPx()
         val controlsBottom = safeDrawing.getTop(localDensity) + (ScreenMargin + TopControlsHeight).toPx()
@@ -209,6 +209,9 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
             bodies = state.bodies,
             selectedStar = state.selectedStar,
             selectedBody = selectedBody,
+            deepSkyLabels = state.deepSkyLabels,
+            selectedDeepSky = state.selectedDeepSky,
+            showDeepSky = state.showDeepSky,
             navigation = state.navigation,
             navigationInsets = navigationInsets,
             showHorizon = state.showHorizon,
@@ -218,6 +221,23 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         // The search panel takes the cards' place while it is open.
         state.selectedStar?.takeIf { !searchOpen }?.let { selected ->
             StarInfoCard(
+                selected = selected,
+                observer = state.observer,
+                julianDate = state.julianDate,
+                riseSet = state.riseSet,
+                expanded = detailsExpanded,
+                onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                onDismiss = viewModel::clearSelection,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .safeDrawingPadding()
+                    .padding(ScreenMargin)
+                    .padding(top = TopControlsHeight)
+                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+            )
+        }
+        state.selectedDeepSky?.takeIf { !searchOpen }?.let { selected ->
+            DeepSkyInfoCard(
                 selected = selected,
                 observer = state.observer,
                 julianDate = state.julianDate,
@@ -304,6 +324,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     observer = state.observer,
                     julianDate = state.julianDate,
                     limitingMagnitude = state.limitingMagnitude,
+                    showDeepSky = state.showDeepSky,
                     onStop = viewModel::stopNavigation,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                 )
@@ -329,11 +350,15 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     onChangeFinished = viewModel::saveLimitingMagnitude,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                 )
-                GuideSwitches(
+                DisplaySwitches(
                     showHorizon = state.showHorizon,
                     showGrid = state.showGrid,
+                    showDeepSky = state.showDeepSky,
+                    showMilkyWay = state.showMilkyWay,
                     onShowHorizonChange = viewModel::setShowHorizon,
                     onShowGridChange = viewModel::setShowGrid,
+                    onShowDeepSkyChange = viewModel::setShowDeepSky,
+                    onShowMilkyWayChange = viewModel::setShowMilkyWay,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                 )
             }
@@ -510,21 +535,31 @@ private fun StarLimitToggle(expanded: Boolean, onClick: () -> Unit, modifier: Mo
     }
 }
 
-/** The two switches for the horizon guides: line and compass letters, and the altitude/azimuth grid. */
+/**
+ * The display switches, two to a row: the horizon line with its compass letters, the altitude/azimuth
+ * grid, the deep-sky objects and the Milky Way band.
+ */
 @Composable
-private fun GuideSwitches(
+private fun DisplaySwitches(
     showHorizon: Boolean,
     showGrid: Boolean,
+    showDeepSky: Boolean,
+    showMilkyWay: Boolean,
     onShowHorizonChange: (Boolean) -> Unit,
     onShowGridChange: (Boolean) -> Unit,
+    onShowDeepSkyChange: (Boolean) -> Unit,
+    onShowMilkyWayChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier.background(CardBackground, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        GuideSwitch(stringResource(R.string.guide_horizon), showHorizon, onShowHorizonChange, Modifier.weight(1f))
-        GuideSwitch(stringResource(R.string.guide_grid), showGrid, onShowGridChange, Modifier.weight(1f))
+    Column(modifier = modifier.background(CardBackground, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GuideSwitch(stringResource(R.string.guide_horizon), showHorizon, onShowHorizonChange, Modifier.weight(1f))
+            GuideSwitch(stringResource(R.string.guide_grid), showGrid, onShowGridChange, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            GuideSwitch(stringResource(R.string.guide_deep_sky), showDeepSky, onShowDeepSkyChange, Modifier.weight(1f))
+            GuideSwitch(stringResource(R.string.guide_milky_way), showMilkyWay, onShowMilkyWayChange, Modifier.weight(1f))
+        }
     }
 }
 

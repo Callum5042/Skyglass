@@ -19,4 +19,13 @@ class StarCatalogAssetTest {
         assertTrue(stars.all { it.vmag <= StarAppearance.MAGNITUDE_LIMIT })
         assertEquals(2491, stars.minBy { it.vmag }.hr) // Sirius
     }
+
+    @Test
+    fun bundledDeepSkyCatalogue_loadsAllMessierObjects() {
+        val assets = InstrumentationRegistry.getInstrumentation().targetContext.assets
+        val objects = StarCatalog.loadDeepSky(assets)
+
+        assertEquals((1..110).toList(), objects.mapNotNull { it.messierNumber }.sorted())
+        assertTrue("loaded ${objects.size}", objects.size >= 150)
+    }
 }

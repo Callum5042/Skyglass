@@ -2,9 +2,15 @@ package com.skyglass.render
 
 import com.skyglass.astro.BodyPosition
 import com.skyglass.catalog.BodyAppearance
+import com.skyglass.catalog.DeepSkyAppearance
+import com.skyglass.catalog.DeepSkyGeometry
+import com.skyglass.catalog.DrawnSemiAxes
+import com.skyglass.catalog.DeepSkyObject
 import com.skyglass.catalog.StarVertices
 import com.skyglass.catalog.StarVisibility
 import com.skyglass.math.Matrix4
+import com.skyglass.math.Vector3
+import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
@@ -14,6 +20,9 @@ data class StarHit(val index: Int, val distancePx: Double)
 
 /** A Sun, Moon or planet under the finger: its index in the body list and its distance from the tap. */
 data class BodyHit(val index: Int, val distancePx: Double)
+
+/** A deep-sky object under the finger: its index in the object list and its distance from the tap. */
+data class DeepSkyHit(val index: Int, val distancePx: Double)
 
 /** Maps a screen tap to the star the user most plausibly meant. */
 object SkyHitTest {
@@ -88,5 +97,108 @@ object SkyHitTest {
             if (best == null || distance < best.distancePx) best = BodyHit(i, distance)
         }
         return best
+    }
+
+    /**
+     * Finds the deep-sky object a tap most plausibly means. The hit area is the object's drawn ellipse
+     * (its long and short axis and position angle, as the renderer draws it, enlarged to the minimum
+     * size), or a fingertip ([MIN_TAP_RADIUS_DP]) round its centre, whichever is larger.
+     *
+     * The returned distance is what [choose] compares with the distances of stars and bodies. For a
+     * small object it is the distance to its centre. Inside a big one it is the tap's normalised
+     * radius in the ellipse (0 at the centre, 1 at the edge) times a fingertip, so a tap in the middle
+     * of the Large Magellanic Cloud or the Pleiades counts as nearly on the object, and only a star
+     * very close to the finger takes it, while a tap near the rim leaves it to a star within a
+     * fingertip, as for any other star.
+     *
+     * @param directions unit vectors toward [objects], equatorial of date, in the same order
+     * @param density pixels per dp
+     * @param focalPx focal length of the projection in pixels, `(heightPx / 2) / tan(fovY / 2)`
+     */
+    fun nearestDeepSky(
+        mvp: Matrix4,
+        objects: List<DeepSkyObject>,
+        directions: List<Vector3>,
+        widthPx: Int,
+        heightPx: Int,
+        tapX: Double,
+        tapY: Double,
+        density: Float,
+        focalPx: Double,
+    ): DeepSkyHit? {
+        val fingertipPx = MIN_TAP_RADIUS_DP * density
+        val minDrawnRadiusPx = DeepSkyAppearance.MIN_RADIUS_DP * density.toDouble()
+        var best: DeepSkyHit? = null
+        for (i in objects.indices) {
+            val d = directions[i]
+            val centre = SkyProjection.project(mvp, d, widthPx, heightPx) ?: continue
+            val tapDx = tapX - centre.x
+            val tapDy = tapY - centre.y
+            val distance = hypot(tapDx, tapDy)
+            val axes = DeepSkyAppearance.drawnSemiAxes(objects[i], focalPx, minDrawnRadiusPx)
+            val ellipseRadius = ellipseRadius(
+                mvp, d, centre, axes, Math.toRadians(objects[i].positionAngleDeg ?: 0.0), tapDx, tapDy, widthPx, heightPx,
+                fallbackRadiusPx = axes.majorRad * focalPx,
+            )
+            val insideEllipse = ellipseRadius <= 1.0
+            if (!insideEllipse && distance > fingertipPx) continue
+            val effective = if (insideEllipse) min(distance, ellipseRadius * fingertipPx) else distance
+            if (best == null || effective < best.distancePx) best = DeepSkyHit(i, effective)
+        }
+        return best
+    }
+
+    /**
+     * The tap's radius in the object's ellipse on the screen: 1 on the edge. The ellipse is found by
+     * projecting the ends of its semi-axes, and the tap's offset from the centre is written in terms of
+     * the two (screen-space) semi-axis vectors. If an end is behind the viewer or the axes are
+     * degenerate, the object is treated as a circle of [fallbackRadiusPx].
+     */
+    private fun ellipseRadius(
+        mvp: Matrix4,
+        direction: Vector3,
+        centre: ScreenPoint,
+        axes: DrawnSemiAxes,
+        angleRad: Double,
+        tapDx: Double,
+        tapDy: Double,
+        widthPx: Int,
+        heightPx: Int,
+        fallbackRadiusPx: Double,
+    ): Double {
+        val circle = hypot(tapDx, tapDy) / fallbackRadiusPx
+        val ends = DeepSkyGeometry.semiAxisEnds(direction, axes.majorRad, axes.minorRad, angleRad)
+        val major = SkyProjection.project(mvp, ends.first, widthPx, heightPx) ?: return circle
+        val minor = SkyProjection.project(mvp, ends.second, widthPx, heightPx) ?: return circle
+        val ux = major.x - centre.x
+        val uy = major.y - centre.y
+        val vx = minor.x - centre.x
+        val vy = minor.y - centre.y
+        val determinant = ux * vy - uy * vx
+        if (abs(determinant) < 1e-9) return circle
+        // Solve tap = alpha * u + beta * v.
+        val alpha = (tapDx * vy - tapDy * vx) / determinant
+        val beta = (ux * tapDy - uy * tapDx) / determinant
+        return hypot(alpha, beta)
+    }
+
+    /** What a tap selects. */
+    enum class Target { NONE, BODY, STAR, DEEP_SKY }
+
+    /**
+     * Decides between the hits of one tap. A body wins a tie with a star, and a star only if it is
+     * strictly nearer; a deep-sky object is chosen only if strictly nearer than any star or body
+     * (distances as returned by the `nearest...` functions; see [nearestDeepSky] for how a big object's
+     * distance is reckoned), since stars and bodies are drawn over the symbols and a finger on one of
+     * them usually means it.
+     */
+    fun choose(bodyHit: BodyHit?, starHit: StarHit?, deepSkyHit: DeepSkyHit?): Target {
+        val foreground = listOfNotNull(bodyHit?.distancePx, starHit?.distancePx).minOrNull()
+        return when {
+            deepSkyHit != null && (foreground == null || deepSkyHit.distancePx < foreground) -> Target.DEEP_SKY
+            bodyHit != null && (starHit == null || bodyHit.distancePx <= starHit.distancePx) -> Target.BODY
+            starHit != null -> Target.STAR
+            else -> Target.NONE
+        }
     }
 }

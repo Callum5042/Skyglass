@@ -7,6 +7,7 @@ object StarCatalog {
     const val ASSET_NAME = "bsc5.dat"
     const val CONSTELLATIONS_ASSET_NAME = "constellations.txt"
     const val STAR_NAMES_ASSET_NAME = "star_names.txt"
+    const val DEEP_SKY_ASSET_NAME = "deep_sky.txt"
 
     /** Reads the bundled catalogue and keeps naked-eye stars. Blocking; call off the main thread. */
     fun loadNakedEyeStars(assets: AssetManager): List<Star> =
@@ -21,4 +22,8 @@ object StarCatalog {
     /** Blocking; call off the main thread. */
     fun loadProperNames(assets: AssetManager): List<ProperName> =
         assets.open(STAR_NAMES_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ProperNameParser::parse)
+
+    /** Blocking; call off the main thread. */
+    fun loadDeepSky(assets: AssetManager): List<DeepSkyObject> =
+        assets.open(DEEP_SKY_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(DeepSkyParser::parse)
 }

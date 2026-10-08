@@ -64,6 +64,12 @@
     <string name="detail_dec_south">−%1$d° %2$02d′ %3$02d″ · of date</string>
     <string name="detail_size_arcsec">%1$.1f″</string>
     <string name="detail_size_arcmin">%1$.1f′</string>
+    <string name="detail_size_arcmin_whole">%1$.0f′</string>
+    <string name="detail_size_arcsec_whole">%1$.0f″</string>
+    <string name="detail_size_deg">%1$.1f°</string>
+    <string name="detail_size_pair">%1$s × %2$s</string>
+    <string name="detail_label_type">Type</string>
+    <string name="dso_type_and_magnitude">%1$s · magnitude %2$.1f</string>
     <string name="detail_always_above">stays above the horizon</string>
     <string name="detail_always_below">stays below the horizon</string>
     <string name="detail_no_event">none in the next %1$d hours</string>
@@ -76,6 +82,18 @@
     <string name="star_color_yellow">yellow</string>
     <string name="star_color_orange">orange</string>
     <string name="star_color_red">red</string>
+
+    <string name="dso_type_galaxy">Galaxy</string>
+    <string name="dso_type_globular_cluster">Globular cluster</string>
+    <string name="dso_type_open_cluster">Open cluster</string>
+    <string name="dso_type_emission_nebula">Emission nebula</string>
+    <string name="dso_type_reflection_nebula">Reflection nebula</string>
+    <string name="dso_type_planetary_nebula">Planetary nebula</string>
+    <string name="dso_type_supernova_remnant">Supernova remnant</string>
+    <string name="dso_type_dark_nebula">Dark nebula</string>
+    <string name="dso_type_star_cloud">Star cloud</string>
+    <string name="dso_type_asterism">Asterism</string>
+    <string name="dso_type_double_star">Double star</string>
 
     <string name="compass_n">N</string>
     <string name="compass_ne">NE</string>
@@ -106,20 +124,24 @@
 
     <string name="guide_horizon">Horizon</string>
     <string name="guide_grid">Grid</string>
+    <string name="guide_deep_sky">Deep sky</string>
+    <string name="guide_milky_way">Milky Way</string>
 
     <string name="search_toggle_label">Search</string>
     <string name="search_toggle_open">Search shown</string>
     <string name="search_toggle_closed">Search hidden</string>
-    <string name="search_hint">Search stars, planets, constellations</string>
+    <string name="search_hint">Search stars, constellations, planets, deep sky</string>
     <string name="search_close">Close search</string>
     <string name="search_no_matches">No matches</string>
     <string name="search_kind_star">Star</string>
     <string name="search_kind_body">Solar system</string>
     <string name="search_kind_constellation">Constellation</string>
+    <string name="search_kind_deep_sky">Deep sky</string>
 
     <string name="navigation_title">Finding %1$s</string>
     <string name="navigation_stop">Stop</string>
     <string name="navigation_stop_description">Stop guiding to %1$s</string>
     <string name="navigation_below_horizon">Below the horizon, toward %1$s</string>
     <string name="navigation_hidden_by_limit">Hidden by the faintest-stars setting</string>
+    <string name="navigation_deep_sky_off">Deep-sky objects are switched off in Display</string>
 </resources>

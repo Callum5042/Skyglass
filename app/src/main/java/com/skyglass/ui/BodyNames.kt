@@ -5,6 +5,7 @@ import com.skyglass.R
 import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.MoonPhase
 import com.skyglass.astro.SkyBody
+import com.skyglass.catalog.DeepSkyType
 import com.skyglass.catalog.SearchKind
 import com.skyglass.catalog.StarColorName
 
@@ -61,5 +62,21 @@ fun StarColorName.nameRes(): Int = when (this) {
 fun SearchKind.labelRes(): Int = when (this) {
     SearchKind.BODY -> R.string.search_kind_body
     SearchKind.CONSTELLATION -> R.string.search_kind_constellation
+    SearchKind.DEEP_SKY -> R.string.search_kind_deep_sky
     SearchKind.STAR -> R.string.search_kind_star
+}
+
+@StringRes
+fun DeepSkyType.nameRes(): Int = when (this) {
+    DeepSkyType.GALAXY -> R.string.dso_type_galaxy
+    DeepSkyType.GLOBULAR_CLUSTER -> R.string.dso_type_globular_cluster
+    DeepSkyType.OPEN_CLUSTER -> R.string.dso_type_open_cluster
+    DeepSkyType.EMISSION_NEBULA -> R.string.dso_type_emission_nebula
+    DeepSkyType.REFLECTION_NEBULA -> R.string.dso_type_reflection_nebula
+    DeepSkyType.PLANETARY_NEBULA -> R.string.dso_type_planetary_nebula
+    DeepSkyType.SUPERNOVA_REMNANT -> R.string.dso_type_supernova_remnant
+    DeepSkyType.DARK_NEBULA -> R.string.dso_type_dark_nebula
+    DeepSkyType.STAR_CLOUD -> R.string.dso_type_star_cloud
+    DeepSkyType.ASTERISM -> R.string.dso_type_asterism
+    DeepSkyType.DOUBLE_STAR -> R.string.dso_type_double_star
 }

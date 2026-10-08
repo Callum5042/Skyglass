@@ -43,6 +43,7 @@ import com.skyglass.R
 import com.skyglass.astro.BodyPosition
 import com.skyglass.astro.SkyPlacement
 import com.skyglass.catalog.NavigationTarget
+import com.skyglass.catalog.SearchKind
 import com.skyglass.catalog.SearchResult
 import com.skyglass.catalog.StarVisibility
 import com.skyglass.astro.CompassPoint
@@ -207,6 +208,7 @@ fun NavigationBanner(
     observer: Observer?,
     julianDate: Double?,
     limitingMagnitude: Double,
+    showDeepSky: Boolean,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -238,6 +240,13 @@ fun NavigationBanner(
                         R.string.navigation_below_horizon,
                         stringResource(CompassPoint.of(placement.azimuthDeg).nameRes()),
                     ),
+                    color = CardSecondaryTextColor,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (navigation.result.kind == SearchKind.DEEP_SKY && !showDeepSky) {
+                Text(
+                    text = stringResource(R.string.navigation_deep_sky_off),
                     color = CardSecondaryTextColor,
                     style = MaterialTheme.typography.bodySmall,
                 )

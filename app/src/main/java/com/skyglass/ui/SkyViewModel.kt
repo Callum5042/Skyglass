@@ -20,6 +20,10 @@ import com.skyglass.catalog.BodyVertices
 import com.skyglass.catalog.ConstellationGeometry
 import com.skyglass.catalog.ConstellationLabel
 import com.skyglass.catalog.ConstellationSky
+import com.skyglass.catalog.DeepSkyLabels
+import com.skyglass.catalog.DeepSkyObject
+import com.skyglass.catalog.DeepSkyVertices
+import com.skyglass.catalog.MilkyWayMesh
 import com.skyglass.catalog.NavigationTarget
 import com.skyglass.catalog.SearchResult
 import com.skyglass.catalog.SearchTarget
@@ -47,6 +51,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.tan
 
 /** What is behind the stars: the plain black sky, or the live rear-camera image. */
 enum class ViewMode { ENHANCED, CAMERA }
@@ -71,6 +76,12 @@ enum class CameraProblem {
 
 /** The star the user tapped, with where it is in the sky so the overlay can ring it. */
 data class SelectedStar(val description: StarDescription, val direction: Vector3)
+
+/** The deep-sky object the user tapped, with where it is in the sky so the overlay can ring it. */
+data class SelectedDeepSky(val obj: DeepSkyObject, val direction: Vector3)
+
+/** A deep-sky object that gets a name beside it (see [DeepSkyLabels]), with where to put it. */
+data class DeepSkyLabel(val text: String, val obj: DeepSkyObject, val direction: Vector3)
 
 data class SkyUiState(
     /** Null while the catalogue is loading. */
@@ -108,6 +119,14 @@ data class SkyUiState(
     val showHorizon: Boolean = true,
     /** The altitude/azimuth reference grid; on by default. */
     val showGrid: Boolean = true,
+    /** The deep-sky objects, their names and tapping them; on by default. */
+    val showDeepSky: Boolean = true,
+    /** The Milky Way band; on by default. */
+    val showMilkyWay: Boolean = true,
+    /** The tapped (or searched-for) deep-sky object. */
+    val selectedDeepSky: SelectedDeepSky? = null,
+    /** The deep-sky objects that are named on screen; empty until the catalogue has loaded. */
+    val deepSkyLabels: List<DeepSkyLabel> = emptyList(),
 )
 
 private class LoadedSky(
@@ -116,6 +135,10 @@ private class LoadedSky(
     val constellations: ConstellationSky,
     val namer: StarNamer,
     val searchIndex: SkySearchIndex,
+    val deepSky: List<DeepSkyObject>,
+    val deepSkyDirections: List<Vector3>,
+    val deepSkyVertices: FloatArray,
+    val milkyWay: MilkyWayMesh,
 )
 
 class SkyViewModel(application: Application) : AndroidViewModel(application) {
@@ -128,6 +151,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private var starNamer: StarNamer? = null
     private var starIndexByHr: Map<Int, Int> = emptyMap()
     private var searchIndex: SkySearchIndex? = null
+    private var deepSky: List<DeepSkyObject> = emptyList()
+    private var deepSkyDirections: List<Vector3> = emptyList()
+    private var deepSkyIndexById: Map<String, Int> = emptyMap()
 
     private val locationSource = LocationSource(application)
     private var locationJob: Job? = null
@@ -142,6 +168,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
 
     private val savedShowHorizon = displayPreferences.getBoolean(KEY_SHOW_HORIZON, true)
     private val savedShowGrid = displayPreferences.getBoolean(KEY_SHOW_GRID, true)
+    private val savedShowDeepSky = displayPreferences.getBoolean(KEY_SHOW_DEEP_SKY, true)
+    private val savedShowMilkyWay = displayPreferences.getBoolean(KEY_SHOW_MILKY_WAY, true)
 
     private val _uiState = MutableStateFlow(
         SkyUiState(
@@ -149,6 +177,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             limitingMagnitude = savedLimitingMagnitude,
             showHorizon = savedShowHorizon,
             showGrid = savedShowGrid,
+            showDeepSky = savedShowDeepSky,
+            showMilkyWay = savedShowMilkyWay,
         ),
     )
     val uiState: StateFlow<SkyUiState> = _uiState.asStateFlow()
@@ -157,6 +187,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         renderInputs.limitingMagnitude = savedLimitingMagnitude
         renderInputs.showHorizon = savedShowHorizon
         renderInputs.showGrid = savedShowGrid
+        renderInputs.showDeepSky = savedShowDeepSky
+        renderInputs.showMilkyWay = savedShowMilkyWay
         viewModelScope.launch {
             val sky = withContext(Dispatchers.IO) {
                 val assets = application.assets
@@ -165,6 +197,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                 val julianDate = AstroTime.julianDate(System.currentTimeMillis())
                 val namer = StarNamer(StarCatalog.loadProperNames(assets), constellations)
                 val constellationSky = ConstellationGeometry.build(constellations, loadedStars, julianDate)
+                val loadedDeepSky = StarCatalog.loadDeepSky(assets)
+                val deepSkyDirections = DeepSkyVertices.directions(loadedDeepSky, julianDate)
                 LoadedSky(
                     stars = loadedStars,
                     vertices = StarVertices.build(loadedStars, julianDate),
@@ -175,19 +209,33 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                         namer,
                         constellationSky.labels.map { it.name },
                         SkyBody.entries.associateWith { application.getString(it.nameRes()) },
+                        loadedDeepSky,
                     ),
+                    deepSky = loadedDeepSky,
+                    deepSkyDirections = deepSkyDirections,
+                    deepSkyVertices = DeepSkyVertices.build(loadedDeepSky, deepSkyDirections),
+                    milkyWay = MilkyWayMesh.build(julianDate),
                 )
             }
             stars = sky.stars
             starNamer = sky.namer
             starIndexByHr = sky.stars.withIndex().associate { (i, star) -> star.hr to i }
             searchIndex = sky.searchIndex
+            deepSky = sky.deepSky
+            deepSkyDirections = sky.deepSkyDirections
+            deepSkyIndexById = sky.deepSky.withIndex().associate { (i, obj) -> obj.id to i }
             renderInputs.constellationLines = sky.constellations.lineVertices
             renderInputs.starVertices = sky.vertices
+            renderInputs.deepSkyVertices = sky.deepSkyVertices
+            renderInputs.milkyWayMesh = sky.milkyWay
+            val deepSkyLabels = sky.deepSky.indices.mapNotNull { i ->
+                DeepSkyLabels.text(sky.deepSky[i])?.let { DeepSkyLabel(it, sky.deepSky[i], sky.deepSkyDirections[i]) }
+            }
             _uiState.update {
                 it.copy(
                     starCount = sky.stars.size,
                     constellationLabels = sky.constellations.labels,
+                    deepSkyLabels = deepSkyLabels,
                 )
             }
         }
@@ -197,9 +245,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Selects the Sun, Moon, planet or star nearest the tap (a body wins a tie, and a star only
-     * if it is closer), or clears the selection when none is within reach.
-     * Coordinates are in pixels of the [widthPx] × [heightPx] sky view.
+     * Selects the Sun, Moon, planet, star or deep-sky object the tap most plausibly means, or clears
+     * the selection when none is within reach (the rules are [SkyHitTest.choose]'s). Coordinates are in pixels of the [widthPx] × [heightPx] sky view.
      */
     fun onSkyTapped(x: Float, y: Float, widthPx: Int, heightPx: Int, density: Float) {
         val mvp = renderInputs.lastMvp
@@ -207,6 +254,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         val namer = starNamer
         var selectedStar: SelectedStar? = null
         var selectedBody: SkyBody? = null
+        var selectedDeepSky: SelectedDeepSky? = null
         if (mvp != null) {
             val bodies = _uiState.value.bodies
             val bodyHit = SkyHitTest.nearestBody(
@@ -219,13 +267,30 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 null
             }
-            if (bodyHit != null && (starHit == null || bodyHit.distancePx <= starHit.distancePx)) {
-                selectedBody = bodies[bodyHit.index].body
-            } else if (starHit != null && vertices != null && namer != null) {
-                selectedStar = SelectedStar(namer.describe(stars[starHit.index]), starDirection(vertices, starHit.index))
+            val deepSkyHit = if (renderInputs.showDeepSky && deepSky.isNotEmpty()) {
+                val focalPx = (heightPx / 2.0) / tan(Math.toRadians(renderInputs.fovYDeg / 2))
+                SkyHitTest.nearestDeepSky(
+                    mvp, deepSky, deepSkyDirections, widthPx, heightPx, x.toDouble(), y.toDouble(), density, focalPx,
+                )
+            } else {
+                null
+            }
+            when (SkyHitTest.choose(bodyHit, starHit, deepSkyHit)) {
+                SkyHitTest.Target.DEEP_SKY -> {
+                    val hit = checkNotNull(deepSkyHit)
+                    selectedDeepSky = SelectedDeepSky(deepSky[hit.index], deepSkyDirections[hit.index])
+                }
+                SkyHitTest.Target.BODY -> selectedBody = bodies[checkNotNull(bodyHit).index].body
+                SkyHitTest.Target.STAR -> if (vertices != null && namer != null) {
+                    val hit = checkNotNull(starHit)
+                    selectedStar = SelectedStar(namer.describe(stars[hit.index]), starDirection(vertices, hit.index))
+                }
+                SkyHitTest.Target.NONE -> Unit
             }
         }
-        _uiState.update { it.copy(selectedStar = selectedStar, selectedBody = selectedBody, riseSet = null) }
+        _uiState.update {
+            it.copy(selectedStar = selectedStar, selectedBody = selectedBody, selectedDeepSky = selectedDeepSky, riseSet = null)
+        }
         refreshRiseSet()
     }
 
@@ -246,6 +311,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     fun navigateTo(result: SearchResult) {
         var selectedStar: SelectedStar? = null
         var selectedBody: SkyBody? = null
+        var selectedDeepSky: SelectedDeepSky? = null
         var fixedDirection: Vector3? = null
         when (val target = result.target) {
             is SearchTarget.StarTarget -> {
@@ -258,6 +324,11 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                 selectedStar = SelectedStar(namer.describe(stars[index]), direction)
             }
             is SearchTarget.BodyTarget -> selectedBody = target.body
+            is SearchTarget.DeepSkyTarget -> {
+                val index = deepSkyIndexById[target.id] ?: return
+                fixedDirection = deepSkyDirections[index]
+                selectedDeepSky = SelectedDeepSky(deepSky[index], deepSkyDirections[index])
+            }
             is SearchTarget.ConstellationTarget ->
                 fixedDirection = _uiState.value.constellationLabels.firstOrNull { it.name == target.name }?.direction ?: return
         }
@@ -265,6 +336,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 selectedStar = selectedStar,
                 selectedBody = selectedBody,
+                selectedDeepSky = selectedDeepSky,
                 riseSet = null,
                 navigation = NavigationTarget(result, fixedDirection),
             )
@@ -279,7 +351,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Dismisses the details card (the same as tapping empty sky). */
     fun clearSelection() {
-        _uiState.update { it.copy(selectedStar = null, selectedBody = null, riseSet = null) }
+        _uiState.update { it.copy(selectedStar = null, selectedBody = null, selectedDeepSky = null, riseSet = null) }
         refreshRiseSet()
     }
 
@@ -295,18 +367,23 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         val state = _uiState.value
         val star = state.selectedStar
         val body = state.selectedBody
+        val deepSkyObject = state.selectedDeepSky
         val observer = renderInputs.observer
-        if ((star == null && body == null) || observer == null) return
+        if ((star == null && body == null && deepSkyObject == null) || observer == null) return
         val startJd = AstroTime.julianDate(System.currentTimeMillis())
         riseSetJob = viewModelScope.launch {
             val times = withContext(Dispatchers.Default) {
-                if (star != null) {
-                    RiseSet.forStar(star.direction, startJd, observer.latitudeDeg, observer.longitudeDeg) { ensureActive() }
+                // Stars and deep-sky objects are both fixed points of the equatorial frame of date.
+                val fixedDirection = star?.direction ?: deepSkyObject?.direction
+                if (fixedDirection != null) {
+                    RiseSet.forStar(fixedDirection, startJd, observer.latitudeDeg, observer.longitudeDeg) { ensureActive() }
                 } else {
                     RiseSet.forBody(checkNotNull(body), startJd, observer.latitudeDeg, observer.longitudeDeg) { ensureActive() }
                 }
             }
-            _uiState.update { if (it.selectedStar == star && it.selectedBody == body) it.copy(riseSet = times) else it }
+            _uiState.update {
+                if (it.selectedStar == star && it.selectedBody == body && it.selectedDeepSky == deepSkyObject) it.copy(riseSet = times) else it
+            }
         }
     }
 
@@ -345,6 +422,25 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         renderInputs.showGrid = show
         _uiState.update { it.copy(showGrid = show) }
         displayPreferences.edit().putBoolean(KEY_SHOW_GRID, show).apply()
+    }
+
+    /** Shows or hides the deep-sky objects, and keeps the choice across restarts. Hiding them deselects the tapped one. */
+    fun setShowDeepSky(show: Boolean) {
+        renderInputs.showDeepSky = show
+        val deselect = !show && _uiState.value.selectedDeepSky != null
+        _uiState.update {
+            if (show || it.selectedDeepSky == null) it.copy(showDeepSky = show)
+            else it.copy(showDeepSky = false, selectedDeepSky = null, riseSet = null)
+        }
+        if (deselect) refreshRiseSet() // cancels the calculation for the dropped object
+        displayPreferences.edit().putBoolean(KEY_SHOW_DEEP_SKY, show).apply()
+    }
+
+    /** Shows or hides the Milky Way band, and keeps the choice across restarts. */
+    fun setShowMilkyWay(show: Boolean) {
+        renderInputs.showMilkyWay = show
+        _uiState.update { it.copy(showMilkyWay = show) }
+        displayPreferences.edit().putBoolean(KEY_SHOW_MILKY_WAY, show).apply()
     }
 
     fun hasLocationPermission(): Boolean = locationSource.hasPermission()
@@ -498,5 +594,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_LIMITING_MAGNITUDE = "limiting_magnitude"
         const val KEY_SHOW_HORIZON = "show_horizon"
         const val KEY_SHOW_GRID = "show_grid"
+        const val KEY_SHOW_DEEP_SKY = "show_deep_sky"
+        const val KEY_SHOW_MILKY_WAY = "show_milky_way"
     }
 }

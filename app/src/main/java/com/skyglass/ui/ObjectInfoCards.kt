@@ -41,6 +41,8 @@ import com.skyglass.astro.Sexagesimal
 import com.skyglass.astro.SkyBody
 import com.skyglass.astro.SkyPlacement
 import com.skyglass.astro.SolarSystem
+import com.skyglass.catalog.DeepSkyMeasure
+import com.skyglass.catalog.DeepSkySize
 import com.skyglass.catalog.StarDistance
 import com.skyglass.math.Vector3
 import com.skyglass.render.Observer
@@ -117,6 +119,54 @@ fun StarInfoCard(
                 color = CardSecondaryTextColor,
                 style = MaterialTheme.typography.bodySmall,
             )
+        },
+    )
+}
+
+/**
+ * Details of the tapped deep-sky object: name, other designations, type and magnitude and where it
+ * is now, then (when [expanded]) its type, constellation, apparent size, coordinates and rise and
+ * set times. A dark nebula has no magnitude, so that is left out.
+ */
+@Composable
+fun DeepSkyInfoCard(
+    selected: SelectedDeepSky,
+    observer: Observer?,
+    julianDate: Double?,
+    riseSet: RiseSetTimes?,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val obj = selected.obj
+    val placement = placementOf(selected.direction, observer, julianDate)
+    val typeName = stringResource(obj.type.nameRes())
+    // The title is the common name or else the first designation, which the second line must not repeat.
+    val designations = (if (obj.name != null) obj.designations else obj.designations.drop(1)).joinToString(" · ")
+    ObjectCard(
+        expanded = expanded,
+        onToggleExpanded = onToggleExpanded,
+        onDismiss = onDismiss,
+        modifier = modifier,
+        header = {
+            Text(text = obj.title, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
+            if (designations.isNotEmpty()) {
+                Text(text = designations, color = CardSecondaryTextColor, style = MaterialTheme.typography.bodyMedium)
+            }
+            Text(
+                text = obj.vmag?.let { stringResource(R.string.dso_type_and_magnitude, typeName, it) } ?: typeName,
+                color = CardTextColor,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            PositionSummary(placement)
+        },
+        details = {
+            DetailRow(stringResource(R.string.detail_label_type), typeName)
+            DetailRow(stringResource(R.string.detail_label_constellation), obj.constellation)
+            DetailRow(stringResource(R.string.detail_label_size), deepSkySizeText(DeepSkySize.of(obj)))
+            CoordinateRows(placement)
+            RiseSetRows(riseSet, julianDate)
         },
     )
 }
@@ -350,6 +400,21 @@ private fun distanceText(distance: StarDistance?): String = when {
     distance.rough -> stringResource(R.string.detail_distance_ly_rough, Math.round(distance.displayLightYears()).toInt())
     distance.lightYears < 10 -> stringResource(R.string.detail_distance_ly, distance.displayLightYears())
     else -> stringResource(R.string.detail_distance_ly_whole, Math.round(distance.displayLightYears()).toInt())
+}
+
+@Composable
+private fun deepSkySizeText(size: DeepSkySize): String {
+    val major = measureText(size.major)
+    val minor = size.minor ?: return major
+    return stringResource(R.string.detail_size_pair, major, measureText(minor))
+}
+
+@Composable
+private fun measureText(measure: DeepSkyMeasure): String = when (measure.unit) {
+    DeepSkyMeasure.Unit.DEGREES -> stringResource(R.string.detail_size_deg, measure.value)
+    DeepSkyMeasure.Unit.ARCMINUTES ->
+        stringResource(if (measure.value >= 10.0) R.string.detail_size_arcmin_whole else R.string.detail_size_arcmin, measure.value)
+    DeepSkyMeasure.Unit.ARCSECONDS -> stringResource(R.string.detail_size_arcsec_whole, measure.value)
 }
 
 /** Arcminutes for the Sun and Moon, arcseconds for the planets. */

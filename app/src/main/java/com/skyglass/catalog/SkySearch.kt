@@ -14,16 +14,27 @@ sealed interface SearchTarget {
 
     /** A constellation figure, by the name of its label (Serpens has two figures, with distinct names). */
     data class ConstellationTarget(val name: String) : SearchTarget
+
+    /** A deep-sky object, by its first designation ([DeepSkyObject.id]: "M31", "NGC 869"). */
+    data class DeepSkyTarget(val id: String) : SearchTarget
 }
 
-/** Ranks bodies before constellations before stars when matches are otherwise equal. */
-enum class SearchKind { BODY, CONSTELLATION, STAR }
+/**
+ * Ranks bodies before constellations before stars before deep-sky objects when matches are otherwise
+ * equal. Deep-sky objects come last because many are named after a star ("Alpha Persei Cluster",
+ * "Omicron Velorum Cluster"), and typing the start of the star's designation must find the star first.
+ */
+enum class SearchKind { BODY, CONSTELLATION, STAR, DEEP_SKY }
 
 /**
  * One line in the search results.
  *
- * @property detail a star's designation ("α Canis Majoris") or else its constellation; null otherwise
+ * @property detail a star's designation ("α Canis Majoris") or else its constellation; a deep-sky
+ *   object's other designations ("NGC 224"); null otherwise
  * @property vmag a star's visual magnitude, for ranking and for noting that the faintest-stars setting hides it
+ *   (deep-sky objects are not affected by that setting, so they have none)
+ * @property rankMagnitude the magnitude that breaks ties between equally good matches, brighter first: a star's
+ *   [vmag], or a deep-sky object's integrated magnitude
  */
 data class SearchResult(
     val target: SearchTarget,
@@ -31,6 +42,7 @@ data class SearchResult(
     val title: String,
     val detail: String? = null,
     val vmag: Double? = null,
+    val rankMagnitude: Double? = vmag,
 )
 
 /**
@@ -48,10 +60,11 @@ data class NavigationTarget(val result: SearchResult, val fixedDirection: Vector
 }
 
 /**
- * Search over the stars, constellations and the Sun, Moon and planets by name, as the app shows
- * them: a star by its traditional name ("Sirius"), designation ("α Canis Majoris", also typed
- * "alpha canis majoris", "alpha cma" or "alpha CMa"; "61 Cygni") or HR number; a constellation by
- * its name; a body by its name.
+ * Search over the stars, constellations, deep-sky objects and the Sun, Moon and planets by name, as
+ * the app shows them: a star by its traditional name ("Sirius"), designation ("α Canis Majoris", also
+ * typed "alpha canis majoris", "alpha cma" or "alpha CMa"; "61 Cygni") or HR number; a constellation by
+ * its name; a body by its name; a deep-sky object by a catalogue designation ("M31", "m 31",
+ * "Messier 31", "NGC 224", "C 14"), its common name ("Andromeda Galaxy") or an alias ("Praesepe").
  *
  * Matching works on [normalize]d text (lower case, no accents, Greek letters spelled out, only
  * letters, digits and single spaces). A result's rank is how closely its best name matches (whole
@@ -101,7 +114,7 @@ class SkySearchIndex private constructor(private val entries: List<Entry>) {
         /** Matching inside a word ("ius" in "sirius") is only useful, and not noise, with a few letters. */
         private const val MIN_SUBSTRING_LENGTH = 3
 
-        private val RANKING = compareBy<Match>({ it.tier }, { it.entry.result.kind.ordinal }, { it.entry.result.vmag ?: Double.MAX_VALUE }, { it.entry.result.title })
+        private val RANKING = compareBy<Match>({ it.tier }, { it.entry.result.kind.ordinal }, { it.entry.result.rankMagnitude ?: Double.MAX_VALUE }, { it.entry.result.title })
 
         private fun tierOf(key: String, query: String, tokens: List<String>): Int = when {
             key == query -> EXACT
@@ -116,14 +129,16 @@ class SkySearchIndex private constructor(private val entries: List<Entry>) {
          * @param stars the catalogue stars the sky shows
          * @param constellationNames the names of the constellation figures that have a label
          * @param bodyNames the user-visible name of each body (localised by the caller)
+         * @param deepSky the deep-sky objects the sky shows
          */
         fun build(
             stars: List<Star>,
             namer: StarNamer,
             constellationNames: List<String>,
             bodyNames: Map<SkyBody, String>,
+            deepSky: List<DeepSkyObject> = emptyList(),
         ): SkySearchIndex {
-            val entries = ArrayList<Entry>(stars.size + constellationNames.size + bodyNames.size)
+            val entries = ArrayList<Entry>(stars.size + constellationNames.size + bodyNames.size + deepSky.size)
             for ((body, name) in bodyNames) {
                 entries += Entry(SearchResult(SearchTarget.BodyTarget(body), SearchKind.BODY, name), listOf(normalize(name)), featured = true)
             }
@@ -133,6 +148,17 @@ class SkySearchIndex private constructor(private val entries: List<Entry>) {
                     listOf(normalize(name)),
                     featured = false,
                 )
+            }
+            for (obj in deepSky) {
+                val others = if (obj.name != null) obj.designations else obj.designations.drop(1)
+                val result = SearchResult(
+                    target = SearchTarget.DeepSkyTarget(obj.id),
+                    kind = SearchKind.DEEP_SKY,
+                    title = obj.title,
+                    detail = others.joinToString(" · ").ifEmpty { null },
+                    rankMagnitude = obj.vmag,
+                )
+                entries += Entry(result, deepSkyKeys(obj).filter { it.isNotEmpty() }, featured = false)
             }
             for (star in stars) {
                 val description = namer.describe(star)
@@ -173,6 +199,35 @@ class SkySearchIndex private constructor(private val entries: List<Entry>) {
             keys += "hr ${star.hr}"
             return keys
         }
+
+        /**
+         * Every way of writing a deep-sky object's name that someone might type: its common name and
+         * aliases, and each designation as catalogued ("ngc 224"), run together ("ngc224") and with the
+         * catalogue's full name ("messier 31", "caldwell 14", "melotte 25", "collinder 399").
+         */
+        private fun deepSkyKeys(obj: DeepSkyObject): Set<String> {
+            val keys = LinkedHashSet<String>()
+            obj.name?.let { keys += normalize(it) }
+            obj.aliases.forEach { keys += normalize(it) }
+            for (designation in obj.designations) {
+                val key = normalize(designation)
+                keys += key
+                val match = DESIGNATION.matchEntire(key) ?: continue
+                val (prefix, number) = match.destructured
+                keys += "$prefix $number"
+                keys += "$prefix$number"
+                CATALOGUE_NAMES[prefix]?.let { full ->
+                    keys += "$full $number"
+                    keys += "$full$number"
+                }
+            }
+            return keys
+        }
+
+        /** "ngc 224", "m31", "c 14": letters, an optional space, digits. */
+        private val DESIGNATION = Regex("^([a-z]+) ?(\\d+)$")
+
+        private val CATALOGUE_NAMES = mapOf("m" to "messier", "c" to "caldwell", "mel" to "melotte", "cr" to "collinder")
 
         /** "alpha1 centauri": the digit that directly follows a Bayer letter's name. */
         private val BAYER_INDEX = Regex("^(\\p{L}+)\\d(?= )")

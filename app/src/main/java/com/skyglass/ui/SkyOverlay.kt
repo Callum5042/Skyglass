@@ -31,6 +31,7 @@ import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.SkyBody
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.ConstellationLabel
+import com.skyglass.catalog.DeepSkyAppearance
 import com.skyglass.catalog.NavigationTarget
 import com.skyglass.catalog.SearchKind
 import com.skyglass.render.CompassLabels
@@ -41,6 +42,8 @@ import com.skyglass.render.SkyNavigation
 import com.skyglass.render.SkyProjection
 import com.skyglass.render.SkyRenderInputs
 import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.tan
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -50,6 +53,18 @@ private val ConstellationLabelColor = Color(0xFF7B8FB8)
 /** Warmer than the constellation labels, so the Sun, Moon and planets read as a different kind of object. */
 private val BodyLabelColor = Color(0xFFD2BE94)
 private val SelectionRingColor = Color(0xFFB8C4DC)
+
+/** Dim lilac, a different hue from the constellation names and the bodies', for the names of deep-sky objects. */
+private val DeepSkyLabelColor = Color(0xFFA79BD0)
+
+/** A deep-sky label sits below an object up to this big, and in the middle of a bigger one (the Magellanic Clouds, the Andromeda Galaxy). */
+private const val DEEP_SKY_LABEL_INSIDE_RADIUS_DP = 60f
+private const val DEEP_SKY_LABEL_GAP_DP = 4f
+
+/** The ring round a selected deep-sky object follows its extent, but never grows beyond this. */
+private const val DEEP_SKY_RING_MAX_RADIUS_DP = 140f
+private const val DEEP_SKY_RING_GAP_DP = 6f
+private const val TARGET_DEEP_SKY_MAX_RADIUS_DP = 160f
 
 /**
  * The compass letters take the horizon line's teal-green (see `LineShaders.HORIZON_*`): N, E, S, W
@@ -92,7 +107,7 @@ private const val ARROW_LABEL_OFFSET_DP = 34f
 
 /**
  * Transparent layer over the GL view that draws constellation names, the names of the Sun, Moon
- * and planets, the compass letters on the horizon and a ring round the selected star or body, all
+ * and planets, the names of the notable deep-sky objects, the compass letters on the horizon and a ring round the selected star or body, all
  * placed with the MVP of the latest GL frame, and reports taps. (The compass letters use the
  * frame's horizon MVP, `SkyRenderInputs.lastHorizonMvp`, since they are fixed to the horizon and
  * not to the stars; see `CompassLabels`.)
@@ -113,6 +128,9 @@ fun SkyOverlay(
     bodies: List<BodyPosition>,
     selectedStar: SelectedStar?,
     selectedBody: BodyPosition?,
+    deepSkyLabels: List<DeepSkyLabel>,
+    selectedDeepSky: SelectedDeepSky?,
+    showDeepSky: Boolean,
     navigation: NavigationTarget?,
     navigationInsets: NavInsets,
     showHorizon: Boolean,
@@ -122,6 +140,7 @@ fun SkyOverlay(
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelMedium
     val measuredLabels = remember(labels, labelStyle) { labels.map { textMeasurer.measure(it.name, labelStyle) } }
+    val measuredDeepSkyLabels = remember(deepSkyLabels, labelStyle) { deepSkyLabels.map { textMeasurer.measure(it.text, labelStyle) } }
     val bodyLabelStyle = MaterialTheme.typography.labelLarge
     val bodyNames = SkyBody.entries.associateWith { stringResource(it.nameRes()) }
     val measuredBodyNames = remember(bodyNames, bodyLabelStyle) {
@@ -136,6 +155,7 @@ fun SkyOverlay(
         compassNames.mapValues { (point, name) -> textMeasurer.measure(name, compassStyles.getValue(point.isCardinal)) }
     }
     val ringRadiusPx = with(LocalDensity.current) { RING_RADIUS_DP.dp.toPx() }
+    val density = LocalDensity.current.density
     val currentOnTap by rememberUpdatedState(onTap)
     val arrowSizePx = with(LocalDensity.current) { ARROW_SIZE_DP.dp.toPx() }
     val arrowPath = remember(arrowSizePx) {
@@ -198,6 +218,29 @@ fun SkyOverlay(
             )
         }
 
+        // Deep-sky objects are named below their symbol, or inside it if it is huge. The symbol's
+        // extent is worked out as the renderer does, from the field of view the last frame used.
+        val focalPx = (height / 2.0) / tan(Math.toRadians(renderInputs.fovYDeg / 2))
+        val minDrawnRadiusPx = DeepSkyAppearance.MIN_RADIUS_DP * density.toDouble()
+        if (showDeepSky) {
+            deepSkyLabels.forEachIndexed { i, label ->
+                val point = SkyProjection.project(mvp, label.direction, width, height) ?: return@forEachIndexed
+                if (!SkyProjection.isOnScreen(point, width, height)) return@forEachIndexed
+                val layout = measuredDeepSkyLabels[i]
+                val radiusPx = DeepSkyAppearance.drawnRadiusPx(label.obj, focalPx, minDrawnRadiusPx).toFloat()
+                val centreY = if (radiusPx > DEEP_SKY_LABEL_INSIDE_RADIUS_DP.dp.toPx()) {
+                    point.y.toFloat()
+                } else {
+                    point.y.toFloat() + radiusPx + DEEP_SKY_LABEL_GAP_DP.dp.toPx() + layout.size.height / 2f
+                }
+                drawText(
+                    layout,
+                    color = DeepSkyLabelColor,
+                    topLeft = Offset(point.x.toFloat() - layout.size.width / 2f, centreY - layout.size.height / 2f),
+                )
+            }
+        }
+
         // Named just below each disc, so the label never covers the body itself.
         for (body in bodies) {
             val point = SkyProjection.project(mvp, body.direction, width, height) ?: continue
@@ -213,13 +256,19 @@ fun SkyOverlay(
             )
         }
 
-        val selectedDirection = selectedStar?.direction ?: selectedBody?.direction
+        val selectedDirection = selectedStar?.direction ?: selectedBody?.direction ?: selectedDeepSky?.direction
         if (selectedDirection != null) {
             val point = SkyProjection.project(mvp, selectedDirection, width, height)
-            val radiusPx = if (selectedBody != null) {
-                maxOf(ringRadiusPx, (BodyAppearance.discRadiusDp(selectedBody) + BODY_RING_GAP_DP).dp.toPx())
-            } else {
-                ringRadiusPx
+            val radiusPx = when {
+                selectedBody != null -> maxOf(ringRadiusPx, (BodyAppearance.discRadiusDp(selectedBody) + BODY_RING_GAP_DP).dp.toPx())
+                selectedDeepSky != null -> maxOf(
+                    ringRadiusPx,
+                    min(
+                        DeepSkyAppearance.drawnRadiusPx(selectedDeepSky.obj, focalPx, minDrawnRadiusPx).toFloat() + DEEP_SKY_RING_GAP_DP.dp.toPx(),
+                        DEEP_SKY_RING_MAX_RADIUS_DP.dp.toPx(),
+                    ),
+                )
+                else -> ringRadiusPx
             }
             if (point != null && SkyProjection.isOnScreen(point, width, height, marginPx = radiusPx.toDouble())) {
                 drawCircle(
@@ -238,6 +287,12 @@ fun SkyOverlay(
                 val radiusPx = when (navigation.result.kind) {
                     SearchKind.STAR -> TARGET_STAR_RADIUS_DP.dp.toPx()
                     SearchKind.CONSTELLATION -> TARGET_CONSTELLATION_RADIUS_DP.dp.toPx()
+                    SearchKind.DEEP_SKY -> {
+                        // The tapped or searched-for object is selected, so its extent is to hand.
+                        val extentPx = selectedDeepSky?.takeIf { it.direction == targetDirection }
+                            ?.let { DeepSkyAppearance.drawnRadiusPx(it.obj, focalPx, minDrawnRadiusPx).toFloat() } ?: 0f
+                        min(maxOf(TARGET_STAR_RADIUS_DP.dp.toPx(), extentPx + TARGET_BODY_GAP_DP.dp.toPx()), TARGET_DEEP_SKY_MAX_RADIUS_DP.dp.toPx())
+                    }
                     SearchKind.BODY -> {
                         val body = bodies.firstOrNull { it.direction == targetDirection }
                         maxOf(TARGET_STAR_RADIUS_DP, (body?.let(BodyAppearance::discRadiusDp) ?: 0f) + TARGET_BODY_GAP_DP).dp.toPx()

@@ -1,5 +1,6 @@
 package com.skyglass.render
 
+import com.skyglass.catalog.MilkyWayMesh
 import com.skyglass.catalog.StarVisibility
 import com.skyglass.math.Matrix4
 
@@ -29,6 +30,18 @@ class SkyRenderInputs {
 
     /** Draw the altitude/azimuth reference grid; see [HorizonGuides]. */
     @Volatile var showGrid: Boolean = true
+
+    /** Deep-sky objects as two triangles each, in the layout of `DeepSkyVertices`; static once loaded. */
+    @Volatile var deepSkyVertices: FloatArray? = null
+
+    /** The Milky Way band's mesh (`MilkyWayMesh`); static once loaded. */
+    @Volatile var milkyWayMesh: MilkyWayMesh? = null
+
+    /** Draw the deep-sky objects (their labels are the overlay's). Unaffected by the faintest-stars setting. */
+    @Volatile var showDeepSky: Boolean = true
+
+    /** Draw the Milky Way band. */
+    @Volatile var showMilkyWay: Boolean = true
 
     /**
      * Vertical field of view of the projection. [DEFAULT_FOV_Y_DEG] for the enhanced view; in the

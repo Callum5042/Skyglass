@@ -31,10 +31,60 @@
     <string name="moon_phase_last_quarter">Last quarter</string>
     <string name="moon_phase_waning_crescent">Waning crescent</string>
 
-    <string name="body_illuminated">%1$d%% illuminated</string>
-    <string name="body_elongation">%1$.0f° from the Sun</string>
-    <string name="body_distance_au">%1$.3f AU from Earth</string>
-    <string name="body_distance_km">%1$,d km from Earth</string>
+    <string name="body_illuminated">%1$d%%</string>
+    <string name="body_elongation">%1$.0f°</string>
+    <string name="body_distance_au">%1$.3f AU</string>
+    <string name="body_distance_km">%1$,d km</string>
+
+    <string name="detail_close">Close details</string>
+    <string name="detail_show_more">More details</string>
+    <string name="detail_show_less">Fewer details</string>
+    <string name="detail_above_horizon">%1$.1f° above the horizon · %2$.1f° %3$s</string>
+    <string name="detail_below_horizon">%1$.1f° below the horizon · %2$.1f° %3$s</string>
+
+    <string name="detail_label_constellation">Constellation</string>
+    <string name="detail_label_spectral_type">Spectral type</string>
+    <string name="detail_label_color">Colour</string>
+    <string name="detail_label_distance">Distance</string>
+    <string name="detail_label_ra">Right ascension</string>
+    <string name="detail_label_dec">Declination</string>
+    <string name="detail_label_rises">Rises</string>
+    <string name="detail_label_sets">Sets</string>
+    <string name="detail_label_illuminated">Illuminated</string>
+    <string name="detail_label_elongation">From the Sun</string>
+    <string name="detail_label_size">Apparent size</string>
+
+    <string name="detail_color_with_bv">%1$s (B−V %2$+.2f)</string>
+    <string name="detail_distance_ly">about %1$,.1f light years</string>
+    <string name="detail_distance_ly_whole">about %1$,d light years</string>
+    <string name="detail_distance_ly_rough">roughly %1$,d light years (uncertain)</string>
+    <string name="detail_distance_unknown">not known reliably from the catalogue</string>
+    <string name="detail_ra">%1$dh %2$02dm %3$02ds · of date</string>
+    <string name="detail_dec_north">+%1$d° %2$02d′ %3$02d″ · of date</string>
+    <string name="detail_dec_south">−%1$d° %2$02d′ %3$02d″ · of date</string>
+    <string name="detail_size_arcsec">%1$.1f″</string>
+    <string name="detail_size_arcmin">%1$.1f′</string>
+    <string name="detail_always_above">stays above the horizon</string>
+    <string name="detail_always_below">stays below the horizon</string>
+    <string name="detail_no_event">none in the next %1$d hours</string>
+    <string name="detail_time_other_day">%1$s %2$s</string>
+
+    <string name="star_color_blue">blue</string>
+    <string name="star_color_blue_white">blue-white</string>
+    <string name="star_color_white">white</string>
+    <string name="star_color_yellow_white">yellow-white</string>
+    <string name="star_color_yellow">yellow</string>
+    <string name="star_color_orange">orange</string>
+    <string name="star_color_red">red</string>
+
+    <string name="compass_n">N</string>
+    <string name="compass_ne">NE</string>
+    <string name="compass_e">E</string>
+    <string name="compass_se">SE</string>
+    <string name="compass_s">S</string>
+    <string name="compass_sw">SW</string>
+    <string name="compass_w">W</string>
+    <string name="compass_nw">NW</string>
 
     <string name="action_grant_location">Allow location</string>
 

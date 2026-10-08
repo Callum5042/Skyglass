@@ -44,6 +44,12 @@ object BscParser {
             bayer = record.field(8, 10).ifEmpty { null },
             bayerIndex = record.field(11, 11).firstOrNull(),
             constellation = record.field(12, 14).ifEmpty { null },
+            // Columns 128-147; the flag in column 148 (variable, emission lines...) is not part of the type.
+            spectralType = record.field(128, 147).ifEmpty { null },
+            // Columns 162-166, written "+.375"; blank when unmeasured.
+            parallaxArcsec = record.double(162, 166),
+            // Column 161 flags a dynamical parallax ("D"); the others are trigonometric.
+            parallaxDynamical = record[161 - 1] == 'D',
         )
     }
 

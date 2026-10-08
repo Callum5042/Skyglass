@@ -2,8 +2,10 @@ package com.skyglass.ui
 
 import androidx.annotation.StringRes
 import com.skyglass.R
+import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.MoonPhase
 import com.skyglass.astro.SkyBody
+import com.skyglass.catalog.StarColorName
 
 /** Display-name resources for the pure-Kotlin astro types, so the UI text lives in `strings.xml`. */
 @StringRes
@@ -29,4 +31,27 @@ fun MoonPhase.nameRes(): Int = when (this) {
     MoonPhase.WANING_GIBBOUS -> R.string.moon_phase_waning_gibbous
     MoonPhase.LAST_QUARTER -> R.string.moon_phase_last_quarter
     MoonPhase.WANING_CRESCENT -> R.string.moon_phase_waning_crescent
+}
+
+@StringRes
+fun CompassPoint.nameRes(): Int = when (this) {
+    CompassPoint.N -> R.string.compass_n
+    CompassPoint.NE -> R.string.compass_ne
+    CompassPoint.E -> R.string.compass_e
+    CompassPoint.SE -> R.string.compass_se
+    CompassPoint.S -> R.string.compass_s
+    CompassPoint.SW -> R.string.compass_sw
+    CompassPoint.W -> R.string.compass_w
+    CompassPoint.NW -> R.string.compass_nw
+}
+
+@StringRes
+fun StarColorName.nameRes(): Int = when (this) {
+    StarColorName.BLUE -> R.string.star_color_blue
+    StarColorName.BLUE_WHITE -> R.string.star_color_blue_white
+    StarColorName.WHITE -> R.string.star_color_white
+    StarColorName.YELLOW_WHITE -> R.string.star_color_yellow_white
+    StarColorName.YELLOW -> R.string.star_color_yellow
+    StarColorName.ORANGE -> R.string.star_color_orange
+    StarColorName.RED -> R.string.star_color_red
 }

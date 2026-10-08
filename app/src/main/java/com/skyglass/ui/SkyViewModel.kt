@@ -12,6 +12,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.skyglass.astro.AstroTime
 import com.skyglass.astro.BodyPosition
+import com.skyglass.astro.RiseSet
+import com.skyglass.astro.RiseSetTimes
 import com.skyglass.astro.SkyBody
 import com.skyglass.astro.SolarSystem
 import com.skyglass.catalog.BodyVertices
@@ -34,6 +36,7 @@ import com.skyglass.sensors.OrientationSensor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -87,6 +90,14 @@ data class SkyUiState(
     val cameraWaiting: Boolean = false,
     /** The "faintest stars" slider: stars fainter than this fade out (see `StarVisibility`). */
     val limitingMagnitude: Double = StarVisibility.DEFAULT_LIMIT,
+    /**
+     * Julian date (UTC) of the last body update, so at most ten seconds old: the
+     * moment the details card works out the tapped object's altitude and azimuth for. Null until the
+     * observer's location is known.
+     */
+    val julianDate: Double? = null,
+    /** Rise and set of the tapped star or body; null until calculated (in the background) and when nothing is tapped. */
+    val riseSet: RiseSetTimes? = null,
 )
 
 private class LoadedSky(
@@ -108,6 +119,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private val locationSource = LocationSource(application)
     private var locationJob: Job? = null
     private var bodyJob: Job? = null
+    private var riseSetJob: Job? = null
 
     // Display settings the user chooses, kept apart from the camera state below. Safe to back up.
     private val displayPreferences = application.getSharedPreferences(DISPLAY_PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -186,7 +198,41 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
         }
-        _uiState.update { it.copy(selectedStar = selectedStar, selectedBody = selectedBody) }
+        _uiState.update { it.copy(selectedStar = selectedStar, selectedBody = selectedBody, riseSet = null) }
+        refreshRiseSet()
+    }
+
+    /** Dismisses the details card (the same as tapping empty sky). */
+    fun clearSelection() {
+        _uiState.update { it.copy(selectedStar = null, selectedBody = null, riseSet = null) }
+        refreshRiseSet()
+    }
+
+    /**
+     * Works out when the tapped object next rises and sets, off the main thread: it scans the
+     * altitude over the next day (see [RiseSet]), which for a body means a few hundred ephemeris
+     * evaluations. Called on a new selection and on every body update, so the times stay "next".
+     * A result for something no longer selected is dropped.
+     */
+    private fun refreshRiseSet() {
+        riseSetJob?.cancel()
+        riseSetJob = null
+        val state = _uiState.value
+        val star = state.selectedStar
+        val body = state.selectedBody
+        val observer = renderInputs.observer
+        if ((star == null && body == null) || observer == null) return
+        val startJd = AstroTime.julianDate(System.currentTimeMillis())
+        riseSetJob = viewModelScope.launch {
+            val times = withContext(Dispatchers.Default) {
+                if (star != null) {
+                    RiseSet.forStar(star.direction, startJd, observer.latitudeDeg, observer.longitudeDeg) { ensureActive() }
+                } else {
+                    RiseSet.forBody(checkNotNull(body), startJd, observer.latitudeDeg, observer.longitudeDeg) { ensureActive() }
+                }
+            }
+            _uiState.update { if (it.selectedStar == star && it.selectedBody == body) it.copy(riseSet = times) else it }
+        }
     }
 
     /**
@@ -197,11 +243,14 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     fun setLimitingMagnitude(value: Double) {
         val limit = StarVisibility.snapLimit(value)
         renderInputs.limitingMagnitude = limit
+        val selectedBefore = _uiState.value.selectedStar
         _uiState.update { state ->
             val selected = state.selectedStar
             val keep = StarVisibility.keepsSelection(selected?.description?.vmag, limit)
-            state.copy(limitingMagnitude = limit, selectedStar = if (keep) selected else null)
+            if (keep) state.copy(limitingMagnitude = limit)
+            else state.copy(limitingMagnitude = limit, selectedStar = null, riseSet = null)
         }
+        if (selectedBefore != null && _uiState.value.selectedStar == null) refreshRiseSet() // cancels the calculation for the dropped star
     }
 
     /** Persists the current "faintest stars" setting across restarts. */
@@ -317,11 +366,11 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     /** No-op until a location is known: the Moon's parallax needs the observer. */
     private fun updateBodies() {
         val observer = renderInputs.observer ?: return
-        val bodies = SolarSystem.positions(
-            AstroTime.julianDate(System.currentTimeMillis()), observer.latitudeDeg, observer.longitudeDeg,
-        )
+        val julianDate = AstroTime.julianDate(System.currentTimeMillis())
+        val bodies = SolarSystem.positions(julianDate, observer.latitudeDeg, observer.longitudeDeg)
         renderInputs.bodyVertices = BodyVertices.build(bodies)
-        _uiState.update { it.copy(bodies = bodies) }
+        _uiState.update { it.copy(bodies = bodies, julianDate = julianDate) }
+        refreshRiseSet()
     }
 
     @SuppressLint("MissingPermission") // guarded by hasPermission()

@@ -56,6 +56,15 @@ class SolarSystemTest {
     }
 
     @Test
+    fun positionOfOneBody_isTheSameAsItsEntryInPositions() {
+        val jd = AstroTime.julianDate(epochMillis("2026-10-07T21:00:00Z"))
+        val all = SolarSystem.positions(jd, 51.5, -0.1)
+        for (body in SkyBody.entries) {
+            assertEquals(body.name, all[body.ordinal], SolarSystem.position(body, jd, 51.5, -0.1))
+        }
+    }
+
+    @Test
     fun parallaxMovesTheMoonByLessThanAboutADegree_andOnlyTheMoon() {
         val iso = "2026-10-07T21:00:00Z"
         val london = at(iso, 51.5, -0.1)

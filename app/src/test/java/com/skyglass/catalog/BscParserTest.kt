@@ -15,6 +15,8 @@ class BscParserTest {
         " 424  1Alp UMiBD+88    8   8890   308 907    1477  Alp UMi  012233.7+884626023148.7+891551123.28 26.46 2.02  +0.60 +0.38 +0.31   F7:Ib-II          v+0.038-0.015 +.007-017SBO    17  6.8  18.4AB   5*"
     private val sirius =
         "2491  9Alp CMaBD-16 1591  48915151881 257I   5423           064044.6-163444064508.9-164258227.22-08.88-1.46   0.00 -0.05 -0.03   A1Vm               -0.553-1.205 +.375-008SBO    13 10.3  11.2AB   4*"
+    private val hr939Dynamical =
+        " 939   The HyiCP-72  219  19400255945 113  W                030202.8-721735030215.4-715409289.93-41.76 5.53  -0.14 -0.51         B3V+A0IV           +0.025+0.014D+.103+012       44  0.0   0.1      *"
     private val hr101 =
         " 101 10    CetBD-00   63   2273128760              Var?     002129.6-003612002637.4-000259109.50-62.27 6.19  +0.90 +0.55         G8III              +0.073-0.001      -023V                         *"
     private val hr2ShortRecord =
@@ -69,6 +71,39 @@ class BscParserTest {
         assertEquals(0.0, star.bv!!, 1e-9)
         assertEquals(-0.553, star.pmRaArcsecPerYear, 1e-9)
         assertEquals(-1.205, star.pmDecArcsecPerYear, 1e-9)
+    }
+
+    @Test
+    fun parsesSpectralTypeAndParallax() {
+        val siriusStar = parse(sirius)
+        assertEquals("A1Vm", siriusStar.spectralType)
+        assertEquals(0.375, siriusStar.parallaxArcsec!!, 1e-9)
+
+        val polarisStar = parse(polaris)
+        assertEquals("F7:Ib-II", polarisStar.spectralType) // the 'v' flag in column 148 is not part of it
+        assertEquals(0.007, polarisStar.parallaxArcsec!!, 1e-9)
+    }
+
+    @Test
+    fun missingParallaxIsNull_andLowercasePrefixStaysInTheType() {
+        val star101 = parse(hr101)
+        assertEquals("G8III", star101.spectralType)
+        assertNull(star101.parallaxArcsec)
+
+        val shortStar = parse(hr2ShortRecord)
+        assertEquals("gG9", shortStar.spectralType)
+        assertNull(shortStar.parallaxArcsec)
+    }
+
+    @Test
+    fun flagsDynamicalParallaxes() {
+        val dynamical = parse(hr939Dynamical)
+        assertEquals(0.103, dynamical.parallaxArcsec!!, 1e-9)
+        assertTrue(dynamical.parallaxDynamical)
+        assertEquals("B3V+A0IV", dynamical.spectralType)
+
+        assertTrue("trigonometric", !parse(sirius).parallaxDynamical)
+        assertTrue("no parallax at all", !parse(hr101).parallaxDynamical)
     }
 
     @Test

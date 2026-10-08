@@ -13,6 +13,9 @@ object AstroTime {
 
     fun julianDate(epochMillis: Long): Double = epochMillis / MILLIS_PER_DAY + JD_UNIX_EPOCH
 
+    /** Inverse of [julianDate]: milliseconds since the Unix epoch. */
+    fun epochMillis(julianDate: Double): Long = Math.round((julianDate - JD_UNIX_EPOCH) * MILLIS_PER_DAY)
+
     fun julianCenturiesSinceJ2000(julianDate: Double): Double = (julianDate - JD_J2000) / DAYS_PER_CENTURY
 
     /**

@@ -1,13 +1,8 @@
 package com.skyglass.ui
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -26,14 +21,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import com.skyglass.R
 import com.skyglass.astro.BodyPosition
-import com.skyglass.astro.MoonPhase
 import com.skyglass.astro.SkyBody
-import com.skyglass.astro.SolarSystem
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.ConstellationLabel
-import com.skyglass.catalog.StarDescription
 import com.skyglass.render.SkyProjection
 import com.skyglass.render.SkyRenderInputs
 
@@ -44,8 +35,8 @@ private val ConstellationLabelColor = Color(0xFF7B8FB8)
 private val BodyLabelColor = Color(0xFFD2BE94)
 private val SelectionRingColor = Color(0xFFB8C4DC)
 internal val CardBackground = Color(0xCC0B0D12)
-private val CardTextColor = Color(0xFFCBD2E0)
-private val CardSecondaryTextColor = Color(0xFF8A93A6)
+internal val CardTextColor = Color(0xFFCBD2E0)
+internal val CardSecondaryTextColor = Color(0xFF8A93A6)
 
 /** Radius of the ring drawn round the selected star; a body's ring is never smaller than its disc plus a gap. */
 private const val RING_RADIUS_DP = 16f
@@ -146,90 +137,5 @@ fun SkyOverlay(
                 )
             }
         }
-    }
-}
-
-/** Name and magnitude of the tapped star. */
-@Composable
-fun StarInfoCard(description: StarDescription, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .background(CardBackground, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Text(
-            text = description.title,
-            color = CardTextColor,
-            style = MaterialTheme.typography.titleMedium,
-        )
-        if (description.designation != null) {
-            Text(
-                text = description.designation,
-                color = CardSecondaryTextColor,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        Text(
-            text = stringResource(R.string.star_magnitude, description.vmag),
-            color = CardTextColor,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Text(
-            text = stringResource(R.string.star_hr, description.hr),
-            color = CardSecondaryTextColor,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
-}
-
-/** Name, magnitude and, depending on the body, phase and distance of the tapped Sun, Moon or planet. */
-@Composable
-fun BodyInfoCard(position: BodyPosition, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .background(CardBackground, RoundedCornerShape(12.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        Text(
-            text = stringResource(position.body.nameRes()),
-            color = CardTextColor,
-            style = MaterialTheme.typography.titleMedium,
-        )
-        position.lunarPhaseDeg?.let { phase ->
-            Text(
-                text = stringResource(MoonPhase.of(phase).nameRes()),
-                color = CardSecondaryTextColor,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        Text(
-            text = stringResource(R.string.star_magnitude, position.vmag),
-            color = CardTextColor,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        // Only the Moon and the inner planets show a phase worth reporting; the rest are always near full.
-        if (position.body == SkyBody.MOON || position.body == SkyBody.MERCURY || position.body == SkyBody.VENUS) {
-            Text(
-                text = stringResource(R.string.body_illuminated, Math.round(position.illuminatedFraction * 100).toInt()),
-                color = CardTextColor,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-        if (position.body != SkyBody.SUN) {
-            Text(
-                text = stringResource(R.string.body_elongation, position.elongationDeg),
-                color = CardSecondaryTextColor,
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-        Text(
-            text = if (position.body == SkyBody.MOON) {
-                stringResource(R.string.body_distance_km, Math.round(position.distanceAu * SolarSystem.KM_PER_AU))
-            } else {
-                stringResource(R.string.body_distance_au, position.distanceAu)
-            },
-            color = CardSecondaryTextColor,
-            style = MaterialTheme.typography.bodySmall,
-        )
     }
 }

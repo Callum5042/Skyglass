@@ -98,6 +98,9 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     // Whether the "faintest stars" slider is showing; the setting itself lives in the view model.
     var starLimitOpen by rememberSaveable { mutableStateOf(false) }
 
+    // Whether the tapped object's card shows all its details; kept across taps, so the choice sticks.
+    var detailsExpanded by rememberSaveable { mutableStateOf(false) }
+
     var hasCameraPermission by remember { mutableStateOf(viewModel.hasCameraPermission()) }
     // Read just before each request: see CameraPermissionPolicy.
     // Saved, because the activity can be recreated while the dialog is up.
@@ -171,7 +174,13 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         )
         state.selectedStar?.let { selected ->
             StarInfoCard(
-                description = selected.description,
+                selected = selected,
+                observer = state.observer,
+                julianDate = state.julianDate,
+                riseSet = state.riseSet,
+                expanded = detailsExpanded,
+                onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                onDismiss = viewModel::clearSelection,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .safeDrawingPadding()
@@ -182,6 +191,12 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         selectedBody?.let { body ->
             BodyInfoCard(
                 position = body,
+                observer = state.observer,
+                julianDate = state.julianDate,
+                riseSet = state.riseSet,
+                expanded = detailsExpanded,
+                onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                onDismiss = viewModel::clearSelection,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .safeDrawingPadding()

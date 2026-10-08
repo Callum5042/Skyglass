@@ -94,24 +94,33 @@ object SolarSystem {
      * @param longitudeDeg positive east, as in [AstroTime.localSiderealTimeDeg]
      */
     fun positions(julianDateUtc: Double, latitudeDeg: Double, longitudeDeg: Double): List<BodyPosition> {
+        val common = Common(julianDateUtc)
+        return SkyBody.entries.map { positionIn(common, it, latitudeDeg, longitudeDeg) }
+    }
+
+    /** One body, for callers that need it at many instants (rise and set); the same values as [positions]. */
+    fun position(body: SkyBody, julianDateUtc: Double, latitudeDeg: Double, longitudeDeg: Double): BodyPosition =
+        positionIn(Common(julianDateUtc), body, latitudeDeg, longitudeDeg)
+
+    /** What every body at one instant shares: the time scales, the frame and the Sun. */
+    private class Common(val julianDateUtc: Double) {
         val jde = AstroTime.julianEphemerisDay(julianDateUtc)
         val t = AstroTime.julianCenturiesSinceJ2000(jde)
         val obliquity = Coordinates.meanObliquityRad(t)
         val precession = Precession.matrixFromJ2000(t)
-
         val sun = SunEphemeris.position(jde)
         val sunDirection = Coordinates.eclipticToEquatorial(Math.toRadians(sun.trueLongitudeDeg), 0.0, obliquity)
-
-        return SkyBody.entries.map { body ->
-            when {
-                body == SkyBody.SUN -> sunPosition(sun.distanceAu, sunDirection)
-                body == SkyBody.MOON -> moonPosition(
-                    jde, julianDateUtc, obliquity, sun, sunDirection, latitudeDeg, longitudeDeg,
-                )
-                else -> planetPosition(body, jde, precession, sunDirection)
-            }
-        }
     }
+
+    private fun positionIn(common: Common, body: SkyBody, latitudeDeg: Double, longitudeDeg: Double): BodyPosition =
+        when (body) {
+            SkyBody.SUN -> sunPosition(common.sun.distanceAu, common.sunDirection)
+            SkyBody.MOON -> moonPosition(
+                common.jde, common.julianDateUtc, common.obliquity, common.sun, common.sunDirection,
+                latitudeDeg, longitudeDeg,
+            )
+            else -> planetPosition(body, common.jde, common.precession, common.sunDirection)
+        }
 
     private fun sunPosition(distanceAu: Double, sunDirection: Vector3) = BodyPosition(
         body = SkyBody.SUN,

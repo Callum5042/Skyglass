@@ -29,9 +29,31 @@ object SkyViewMath {
         displayRotation: Int,
     ): Matrix3 {
         val equatorialToTrueEnu = Coordinates.equatorialToEnuMatrix(Math.toRadians(lstDeg), Math.toRadians(latitudeDeg))
+        return horizonViewMatrix(deviceToMagneticEnu, declinationDeg, displayRotation) * equatorialToTrueEnu
+    }
+
+    /**
+     * True ENU (+X east, +Y north, +Z up) → screen-aligned eye coordinates: [viewMatrix] without the
+     * equatorial step, so things fixed to the observer's horizon (the horizon line, compass points,
+     * altitude/azimuth grid) need neither the time nor the latitude. [viewMatrix] is this times
+     * H(LST, φ).
+     */
+    fun horizonViewMatrix(deviceToMagneticEnu: Quaternion, declinationDeg: Double, displayRotation: Int): Matrix3 {
         val trueToMagneticEnu = Coordinates.magneticToTrueEnu(Math.toRadians(declinationDeg)).transpose()
         val magneticEnuToDevice = deviceToMagneticEnu.toMatrix3().transpose()
-        return deviceToScreen(displayRotation) * magneticEnuToDevice * trueToMagneticEnu * equatorialToTrueEnu
+        return deviceToScreen(displayRotation) * magneticEnuToDevice * trueToMagneticEnu
+    }
+
+    /** Clip-space matrix for true-ENU directions; see [horizonViewMatrix]. */
+    fun horizonModelViewProjection(
+        deviceToMagneticEnu: Quaternion,
+        declinationDeg: Double,
+        displayRotation: Int,
+        fovYDeg: Double,
+        aspect: Double,
+    ): Matrix4 {
+        val view = horizonViewMatrix(deviceToMagneticEnu, declinationDeg, displayRotation)
+        return Matrix4.perspective(fovYDeg, aspect, NEAR, FAR) * Matrix4.fromMatrix3(view)
     }
 
     fun modelViewProjection(

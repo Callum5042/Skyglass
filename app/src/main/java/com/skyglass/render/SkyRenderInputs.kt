@@ -24,6 +24,12 @@ class SkyRenderInputs {
      */
     @Volatile var limitingMagnitude: Double = StarVisibility.DEFAULT_LIMIT
 
+    /** Draw the horizon line (and, in the overlay, the compass letters); see [HorizonGuides]. */
+    @Volatile var showHorizon: Boolean = true
+
+    /** Draw the altitude/azimuth reference grid; see [HorizonGuides]. */
+    @Volatile var showGrid: Boolean = true
+
     /**
      * Vertical field of view of the projection. [DEFAULT_FOV_Y_DEG] for the enhanced view; in the
      * camera view the real camera's (see `CameraFov`), so the sky lines up with the image.
@@ -48,6 +54,12 @@ class SkyRenderInputs {
      * placed with exactly the view the user is looking at. Null until the first frame is drawn.
      */
     @Volatile var lastMvp: Matrix4? = null
+
+    /**
+     * GL thread -> main thread: the same view as [lastMvp] but taking true-ENU directions (the
+     * horizon's own frame, no sidereal time or latitude involved), for placing the compass letters.
+     */
+    @Volatile var lastHorizonMvp: Matrix4? = null
 
     companion object {
         const val DEFAULT_FOV_Y_DEG = 60.0

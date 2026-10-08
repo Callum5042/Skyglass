@@ -96,13 +96,16 @@
     <string name="status_camera_waiting">Waiting for the camera. It may be in use by another app.</string>
     <string name="action_open_settings">Open settings</string>
 
-    <string name="star_limit_toggle_label">Stars</string>
-    <string name="star_limit_toggle_open">Faintest-stars slider shown</string>
-    <string name="star_limit_toggle_closed">Faintest-stars slider hidden</string>
+    <string name="star_limit_toggle_label">Display</string>
+    <string name="star_limit_toggle_open">Display settings shown</string>
+    <string name="star_limit_toggle_closed">Display settings hidden</string>
     <string name="star_limit_all">Faintest stars: all</string>
     <string name="star_limit_value">Faintest stars: magnitude %1$.1f · about Bortle %2$d</string>
     <string name="star_limit_description">Faintest stars shown</string>
     <string name="star_limit_state">Magnitude %1$.1f. Stars fainter than this fade out.</string>
+
+    <string name="guide_horizon">Horizon</string>
+    <string name="guide_grid">Grid</string>
 
     <string name="search_toggle_label">Search</string>
     <string name="search_toggle_open">Search shown</string>

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
@@ -22,14 +23,17 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import com.skyglass.astro.BodyPosition
+import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.SkyBody
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.ConstellationLabel
 import com.skyglass.catalog.NavigationTarget
 import com.skyglass.catalog.SearchKind
+import com.skyglass.render.CompassLabels
 import com.skyglass.render.EdgeArrow
 import com.skyglass.render.NavInsets
 import com.skyglass.render.ScreenPoint
@@ -46,6 +50,18 @@ private val ConstellationLabelColor = Color(0xFF7B8FB8)
 /** Warmer than the constellation labels, so the Sun, Moon and planets read as a different kind of object. */
 private val BodyLabelColor = Color(0xFFD2BE94)
 private val SelectionRingColor = Color(0xFFB8C4DC)
+
+/**
+ * The compass letters take the horizon line's teal-green (see `LineShaders.HORIZON_*`): N, E, S, W
+ * brighter and bold, the four in between dimmer and smaller. A dark shadow keeps them legible over a
+ * bright camera image.
+ */
+private val CardinalLabelColor = Color(0xFF8FD6C2)
+private val IntercardinalLabelColor = Color(0xFF63998B)
+private val CompassLabelShadow = Shadow(color = Color(0xCC000000), blurRadius = 6f)
+
+/** A compass letter is still drawn this far outside the screen, so it slides off the edge instead of vanishing at it. */
+private const val COMPASS_LABEL_EDGE_MARGIN_DP = 24f
 
 /** Amber, so the search target stands out from the blue-grey selection ring and the labels without being bright. */
 internal val NavigationColor = Color(0xFFE8B84A)
@@ -76,8 +92,10 @@ private const val ARROW_LABEL_OFFSET_DP = 34f
 
 /**
  * Transparent layer over the GL view that draws constellation names, the names of the Sun, Moon
- * and planets, and a ring round the selected star or body, all placed with the MVP of the latest
- * GL frame, and reports taps.
+ * and planets, the compass letters on the horizon and a ring round the selected star or body, all
+ * placed with the MVP of the latest GL frame, and reports taps. (The compass letters use the
+ * frame's horizon MVP, `SkyRenderInputs.lastHorizonMvp`, since they are fixed to the horizon and
+ * not to the stars; see `CompassLabels`.)
  *
  * While [navigation] is set it also guides the user to the searched-for target (see [SkyNavigation]):
  * an arrow at the edge of the usable view, labelled with the angle to turn, while the target is out
@@ -97,6 +115,7 @@ fun SkyOverlay(
     selectedBody: BodyPosition?,
     navigation: NavigationTarget?,
     navigationInsets: NavInsets,
+    showHorizon: Boolean,
     onTap: (x: Float, y: Float, widthPx: Int, heightPx: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -107,6 +126,14 @@ fun SkyOverlay(
     val bodyNames = SkyBody.entries.associateWith { stringResource(it.nameRes()) }
     val measuredBodyNames = remember(bodyNames, bodyLabelStyle) {
         bodyNames.mapValues { (_, name) -> textMeasurer.measure(name, bodyLabelStyle) }
+    }
+    val compassStyles = mapOf(
+        true to MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        false to MaterialTheme.typography.labelMedium,
+    )
+    val compassNames = CompassPoint.entries.associateWith { stringResource(it.nameRes()) }
+    val measuredCompass = remember(compassNames, compassStyles) {
+        compassNames.mapValues { (point, name) -> textMeasurer.measure(name, compassStyles.getValue(point.isCardinal)) }
     }
     val ringRadiusPx = with(LocalDensity.current) { RING_RADIUS_DP.dp.toPx() }
     val currentOnTap by rememberUpdatedState(onTap)
@@ -138,6 +165,24 @@ fun SkyOverlay(
         val mvp = renderInputs.lastMvp ?: return@Canvas
         val width = size.width.toInt()
         val height = size.height.toInt()
+
+        if (showHorizon) {
+            renderInputs.lastHorizonMvp?.let { horizonMvp ->
+                val edgeMarginPx = COMPASS_LABEL_EDGE_MARGIN_DP.dp.toPx().toDouble()
+                for (placed in CompassLabels.place(horizonMvp, width, height, edgeMarginPx)) {
+                    val layout = measuredCompass.getValue(placed.point)
+                    drawText(
+                        layout,
+                        color = if (placed.point.isCardinal) CardinalLabelColor else IntercardinalLabelColor,
+                        topLeft = Offset(
+                            placed.position.x.toFloat() - layout.size.width / 2f,
+                            placed.position.y.toFloat() - layout.size.height / 2f,
+                        ),
+                        shadow = CompassLabelShadow,
+                    )
+                }
+            }
+        }
 
         labels.forEachIndexed { i, label ->
             val point = SkyProjection.project(mvp, label.direction, width, height) ?: return@forEachIndexed

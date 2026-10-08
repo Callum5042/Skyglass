@@ -10,6 +10,20 @@ object LineShaders {
     const val LINE_GREEN = 0.22f
     const val LINE_BLUE = 0.38f
 
+    /**
+     * The horizon: a muted teal-green, a different hue from the blue-grey constellation lines so the
+     * two never read as the same kind of thing, and clearly brighter than them. (Drawn 2 px wide
+     * where the GPU allows wide lines; see `SkyRenderer`.)
+     */
+    const val HORIZON_RED = 0.20f
+    const val HORIZON_GREEN = 0.55f
+    const val HORIZON_BLUE = 0.42f
+
+    /** The altitude/azimuth grid: the horizon's hue at about a fifth of its strength, fainter than the constellation lines. */
+    const val GRID_RED = 0.05f
+    const val GRID_GREEN = 0.13f
+    const val GRID_BLUE = 0.10f
+
     val VERTEX = """
         #version 300 es
         uniform mat4 uMvp;

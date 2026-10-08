@@ -36,6 +36,12 @@ data class SkyPlacement(val raDeg: Double, val decDeg: Double, val altitudeDeg: 
 enum class CompassPoint {
     N, NE, E, SE, S, SW, W, NW;
 
+    /** The azimuth of the point itself, from true north through east: N 0°, NE 45°, E 90° and so on. */
+    val azimuthDeg: Double get() = ordinal * 45.0
+
+    /** N, E, S and W, as opposed to the four in between. */
+    val isCardinal: Boolean get() = ordinal % 2 == 0
+
     companion object {
         /** The point whose 45° sector contains [azimuthDeg] (measured from north through east). */
         fun of(azimuthDeg: Double): CompassPoint =

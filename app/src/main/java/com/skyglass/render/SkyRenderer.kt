@@ -19,10 +19,13 @@ import kotlin.math.min
 import kotlin.math.tan
 
 /**
- * Draws the constellation lines, the star field, then the Sun, Moon and planets. All vectors live
- * in VBOs in the equatorial frame of date; each frame only the MVP matrix changes, built by
- * [SkyViewMath]. The star and line buffers are static; the body buffer is replaced every few
- * seconds as the bodies move, and re-uploaded when its array instance changes.
+ * Draws the horizon and reference grid, the constellation lines, the star field, then the Sun, Moon
+ * and planets. Stars, lines and bodies live in VBOs in the equatorial frame of date; each frame only
+ * the MVP matrix changes, built by [SkyViewMath]. The horizon guides are fixed to the observer, so
+ * they live in true ENU and are drawn with the same view minus the sky's rotation
+ * ([SkyViewMath.horizonModelViewProjection]). The star, line and guide buffers are static; the body
+ * buffer is replaced every few seconds as the bodies move, and re-uploaded when its array instance
+ * changes.
  *
  * @param orientation latest raw device→magnetic-ENU rotation; smoothed here, once per frame
  * @param displayRotation current `Surface.ROTATION_*` value
@@ -37,6 +40,7 @@ class SkyRenderer(
 
     private val filter = OrientationFilter()
     private val mvpFloats = FloatArray(16)
+    private val horizonMvpFloats = FloatArray(16)
 
     private lateinit var program: ShaderProgram
     private var uMvp = -1
@@ -56,6 +60,12 @@ class SkyRenderer(
     private var lineVbo = 0
     private var uploadedLines: FloatArray? = null
     private var lineVertexCount = 0
+
+    // Horizon line and reference grid, in one static buffer: the grid first, then the horizon.
+    private var guideVbo = 0
+    private var guidesUploaded = false
+    private var gridVertexCount = 0
+    private var horizonVertexCount = 0
 
     private lateinit var bodyProgram: ShaderProgram
     private var uBodyMvp = -1
@@ -100,12 +110,14 @@ class SkyRenderer(
         uBodyMoonOccluder = bodyProgram.uniformLocation("uMoonOccluder")
         uBodyCameraMode = bodyProgram.uniformLocation("uCameraMode")
 
-        val ids = IntArray(3)
-        GLES30.glGenBuffers(3, ids, 0)
+        val ids = IntArray(4)
+        GLES30.glGenBuffers(4, ids, 0)
         vbo = ids[0]
         lineVbo = ids[1]
         bodyVbo = ids[2]
+        guideVbo = ids[3]
         // A new context has empty buffers, even if the data was uploaded to a previous one.
+        guidesUploaded = false
         uploadedVertices = null
         uploadedLines = null
         uploadedBodies = null
@@ -181,7 +193,21 @@ class SkyRenderer(
         inputs.lastMvp = mvp
         mvp.toColumnMajorFloatArray(mvpFloats)
 
-        // Lines first, so stars are drawn over them.
+        // The same orientation, for things fixed to the horizon: no sidereal time, no latitude.
+        val horizonMvp = SkyViewMath.horizonModelViewProjection(
+            deviceToMagneticEnu = smoothed,
+            declinationDeg = observer.declinationDeg,
+            displayRotation = displayRotation(),
+            fovYDeg = fovYDeg,
+            aspect = aspect,
+        )
+        inputs.lastHorizonMvp = horizonMvp
+        horizonMvp.toColumnMajorFloatArray(horizonMvpFloats)
+
+        // The horizon and grid first, under everything else.
+        drawGuides(cameraModeUniform, inputs.showHorizon, inputs.showGrid)
+
+        // Constellation lines next, so stars are drawn over them.
         inputs.constellationLines?.let { lines ->
             if (lines !== uploadedLines) uploadLines(lines)
             drawLines(cameraModeUniform)
@@ -205,6 +231,44 @@ class SkyRenderer(
             if (bodies !== uploadedBodies) uploadBodies(bodies)
             drawBodies(mvp, fovYDeg, cameraModeUniform)
         }
+    }
+
+    /**
+     * The reference grid (faint) and the horizon (strong, 2 px where the GPU draws wide lines), with
+     * the line program the constellation lines use, so the camera-view alpha follows the same rule.
+     * Their blending is that of the lines, set by the caller.
+     */
+    private fun drawGuides(cameraModeUniform: Float, showHorizon: Boolean, showGrid: Boolean) {
+        if (!showHorizon && !showGrid) return
+        if (!guidesUploaded) uploadGuides()
+        lineProgram.use()
+        GLES30.glUniformMatrix4fv(uLineMvp, 1, false, horizonMvpFloats, 0)
+        GLES30.glUniform1f(uLineCameraMode, cameraModeUniform)
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, guideVbo)
+        GLES30.glEnableVertexAttribArray(LineShaders.ATTRIB_POSITION)
+        GLES30.glVertexAttribPointer(
+            LineShaders.ATTRIB_POSITION, HorizonGuides.FLOATS_PER_VERTEX, GLES30.GL_FLOAT, false, 0, 0,
+        )
+        if (showGrid && gridVertexCount > 0) {
+            GLES30.glUniform3f(uLineColor, LineShaders.GRID_RED, LineShaders.GRID_GREEN, LineShaders.GRID_BLUE)
+            GLES30.glDrawArrays(GLES30.GL_LINES, 0, gridVertexCount)
+        }
+        if (showHorizon && horizonVertexCount > 0) {
+            GLES30.glLineWidth(HORIZON_LINE_WIDTH_PX) // clamped by the GPU; many only draw 1 px
+            GLES30.glUniform3f(uLineColor, LineShaders.HORIZON_RED, LineShaders.HORIZON_GREEN, LineShaders.HORIZON_BLUE)
+            GLES30.glDrawArrays(GLES30.GL_LINES, gridVertexCount, horizonVertexCount)
+            GLES30.glLineWidth(1f)
+        }
+    }
+
+    private fun uploadGuides() {
+        val geometry = HorizonGuides.build()
+        val all = geometry.grid + geometry.horizon
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, guideVbo)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, all.size * Float.SIZE_BYTES, toBuffer(all), GLES30.GL_STATIC_DRAW)
+        gridVertexCount = geometry.grid.size / HorizonGuides.FLOATS_PER_VERTEX
+        horizonVertexCount = geometry.horizon.size / HorizonGuides.FLOATS_PER_VERTEX
+        guidesUploaded = true
     }
 
     /** Sun, Moon and planets over the stars. */
@@ -330,5 +394,8 @@ class SkyRenderer(
     private companion object {
         /** Keeps the shader's smoothstep well defined if the Moon would be vanishingly small. */
         const val MIN_MOON_OCCLUDER = 0.05
+
+        /** Asked of the GPU for the horizon; devices without wide lines draw 1 px and rely on its brightness. */
+        const val HORIZON_LINE_WIDTH_PX = 2f
     }
 }

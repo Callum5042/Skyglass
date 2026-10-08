@@ -109,7 +109,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         if (hasLocationPermission) viewModel.startLocationUpdates()
     }
 
-    // Whether the "faintest stars" slider is showing; the setting itself lives in the view model.
+    // Whether the display settings card (the "faintest stars" slider and the horizon switches) is
+    // showing; the settings themselves live in the view model.
     var starLimitOpen by rememberSaveable { mutableStateOf(false) }
 
     // Whether the tapped object's card shows all its details; kept across taps, so the choice sticks.
@@ -210,6 +211,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
             selectedBody = selectedBody,
             navigation = state.navigation,
             navigationInsets = navigationInsets,
+            showHorizon = state.showHorizon,
             onTap = { x, y, width, height -> viewModel.onSkyTapped(x, y, width, height, density) },
             modifier = Modifier.fillMaxSize(),
         )
@@ -325,6 +327,13 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     limitingMagnitude = state.limitingMagnitude,
                     onChange = viewModel::setLimitingMagnitude,
                     onChangeFinished = viewModel::saveLimitingMagnitude,
+                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                )
+                GuideSwitches(
+                    showHorizon = state.showHorizon,
+                    showGrid = state.showGrid,
+                    onShowHorizonChange = viewModel::setShowHorizon,
+                    onShowGridChange = viewModel::setShowGrid,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                 )
             }
@@ -498,6 +507,40 @@ private fun StarLimitToggle(expanded: Boolean, onClick: () -> Unit, modifier: Mo
             color = if (expanded) ActiveTextColor else StatusTextColor,
             style = MaterialTheme.typography.labelLarge,
         )
+    }
+}
+
+/** The two switches for the horizon guides: line and compass letters, and the altitude/azimuth grid. */
+@Composable
+private fun GuideSwitches(
+    showHorizon: Boolean,
+    showGrid: Boolean,
+    onShowHorizonChange: (Boolean) -> Unit,
+    onShowGridChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.background(CardBackground, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        GuideSwitch(stringResource(R.string.guide_horizon), showHorizon, onShowHorizonChange, Modifier.weight(1f))
+        GuideSwitch(stringResource(R.string.guide_grid), showGrid, onShowGridChange, Modifier.weight(1f))
+    }
+}
+
+/** A labelled switch, at least 48 dp tall (the Switch alone is ~32 dp) with the whole row as its touch target. */
+@Composable
+private fun GuideSwitch(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Text(text = label, color = StatusTextColor, style = MaterialTheme.typography.labelLarge)
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 

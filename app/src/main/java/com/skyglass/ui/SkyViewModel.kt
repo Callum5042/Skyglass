@@ -104,6 +104,10 @@ data class SkyUiState(
     val riseSet: RiseSetTimes? = null,
     /** What the user searched for and is being guided to, until they stop; see [SkyViewModel.navigateTo]. */
     val navigation: NavigationTarget? = null,
+    /** The horizon line and the compass letters on it (see `HorizonGuides`); on by default. */
+    val showHorizon: Boolean = true,
+    /** The altitude/azimuth reference grid; on by default. */
+    val showGrid: Boolean = true,
 )
 
 private class LoadedSky(
@@ -136,13 +140,23 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         displayPreferences.getFloat(KEY_LIMITING_MAGNITUDE, StarVisibility.DEFAULT_LIMIT.toFloat()).toDouble(),
     )
 
+    private val savedShowHorizon = displayPreferences.getBoolean(KEY_SHOW_HORIZON, true)
+    private val savedShowGrid = displayPreferences.getBoolean(KEY_SHOW_GRID, true)
+
     private val _uiState = MutableStateFlow(
-        SkyUiState(hasRotationSensor = orientationSensor.isAvailable, limitingMagnitude = savedLimitingMagnitude),
+        SkyUiState(
+            hasRotationSensor = orientationSensor.isAvailable,
+            limitingMagnitude = savedLimitingMagnitude,
+            showHorizon = savedShowHorizon,
+            showGrid = savedShowGrid,
+        ),
     )
     val uiState: StateFlow<SkyUiState> = _uiState.asStateFlow()
 
     init {
         renderInputs.limitingMagnitude = savedLimitingMagnitude
+        renderInputs.showHorizon = savedShowHorizon
+        renderInputs.showGrid = savedShowGrid
         viewModelScope.launch {
             val sky = withContext(Dispatchers.IO) {
                 val assets = application.assets
@@ -319,6 +333,20 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         displayPreferences.edit().putFloat(KEY_LIMITING_MAGNITUDE, _uiState.value.limitingMagnitude.toFloat()).apply()
     }
 
+    /** Shows or hides the horizon line and compass letters, and keeps the choice across restarts. */
+    fun setShowHorizon(show: Boolean) {
+        renderInputs.showHorizon = show
+        _uiState.update { it.copy(showHorizon = show) }
+        displayPreferences.edit().putBoolean(KEY_SHOW_HORIZON, show).apply()
+    }
+
+    /** Shows or hides the altitude/azimuth reference grid, and keeps the choice across restarts. */
+    fun setShowGrid(show: Boolean) {
+        renderInputs.showGrid = show
+        _uiState.update { it.copy(showGrid = show) }
+        displayPreferences.edit().putBoolean(KEY_SHOW_GRID, show).apply()
+    }
+
     fun hasLocationPermission(): Boolean = locationSource.hasPermission()
 
     fun hasCameraPermission(): Boolean =
@@ -468,5 +496,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         /** User settings; unlike the camera file this one is deliberately left in backups. */
         const val DISPLAY_PREFERENCES_NAME = "display_settings"
         const val KEY_LIMITING_MAGNITUDE = "limiting_magnitude"
+        const val KEY_SHOW_HORIZON = "show_horizon"
+        const val KEY_SHOW_GRID = "show_grid"
     }
 }

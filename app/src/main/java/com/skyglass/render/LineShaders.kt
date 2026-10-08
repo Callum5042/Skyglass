@@ -26,10 +26,12 @@ object LineShaders {
         precision mediump float;
 
         uniform vec3 uColor;
+        uniform float uCameraMode;   // 0 enhanced view, 1 camera view: see OverlayBlend
         out vec4 fragColor;
 
         void main() {
-            fragColor = vec4(uColor, 1.0);
+            float alpha = mix(1.0, min(1.0, max(max(uColor.r, uColor.g), uColor.b)), uCameraMode);
+            fragColor = vec4(uColor, alpha);
         }
     """.trimIndent()
 }

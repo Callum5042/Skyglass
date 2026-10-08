@@ -42,6 +42,8 @@ class SkyRenderer(
     private var uMvp = -1
     private var uPointScale = -1
     private var uMaxPointSize = -1
+    private var uCameraMode = -1
+    private var uLimitMag = -1
 
     private var vbo = 0
     private var uploadedVertices: FloatArray? = null
@@ -50,6 +52,7 @@ class SkyRenderer(
     private lateinit var lineProgram: ShaderProgram
     private var uLineMvp = -1
     private var uLineColor = -1
+    private var uLineCameraMode = -1
     private var lineVbo = 0
     private var uploadedLines: FloatArray? = null
     private var lineVertexCount = 0
@@ -60,6 +63,7 @@ class SkyRenderer(
     private var uBodyMaxPointSize = -1
     private var uBodyMoonLight = -1
     private var uBodyMoonOccluder = -1
+    private var uBodyCameraMode = -1
     private var bodyVbo = 0
     private var uploadedBodies: FloatArray? = null
     private var bodyCount = 0
@@ -73,19 +77,20 @@ class SkyRenderer(
     private var lastFrameNanos = 0L
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        GLES30.glClearColor(0f, 0f, 0f, 1f)
         GLES30.glDisable(GLES30.GL_DEPTH_TEST)
         GLES30.glEnable(GLES30.GL_BLEND)
-        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE) // additive: overlapping glows brighten
 
         program = ShaderProgram(StarShaders.VERTEX, StarShaders.FRAGMENT)
         uMvp = program.uniformLocation("uMvp")
         uPointScale = program.uniformLocation("uPointScale")
         uMaxPointSize = program.uniformLocation("uMaxPointSize")
+        uCameraMode = program.uniformLocation("uCameraMode")
+        uLimitMag = program.uniformLocation("uLimitMag")
 
         lineProgram = ShaderProgram(LineShaders.VERTEX, LineShaders.FRAGMENT)
         uLineMvp = lineProgram.uniformLocation("uMvp")
         uLineColor = lineProgram.uniformLocation("uColor")
+        uLineCameraMode = lineProgram.uniformLocation("uCameraMode")
 
         bodyProgram = ShaderProgram(BodyShaders.VERTEX, BodyShaders.FRAGMENT)
         uBodyMvp = bodyProgram.uniformLocation("uMvp")
@@ -93,6 +98,7 @@ class SkyRenderer(
         uBodyMaxPointSize = bodyProgram.uniformLocation("uMaxPointSize")
         uBodyMoonLight = bodyProgram.uniformLocation("uMoonLight")
         uBodyMoonOccluder = bodyProgram.uniformLocation("uMoonOccluder")
+        uBodyCameraMode = bodyProgram.uniformLocation("uCameraMode")
 
         val ids = IntArray(3)
         GLES30.glGenBuffers(3, ids, 0)
@@ -120,8 +126,32 @@ class SkyRenderer(
         aspect = if (height > 0) width.toDouble() / height else 1.0
     }
 
+    /** Applies the factors chosen by [OverlayBlend], which is where the reasoning for each mode lives. */
+    private fun setBlending(factors: OverlayBlend.Factors) {
+        GLES30.glBlendFuncSeparate(
+            glFactor(factors.srcRgb), glFactor(factors.dstRgb), glFactor(factors.srcAlpha), glFactor(factors.dstAlpha),
+        )
+    }
+
+    private fun glFactor(factor: OverlayBlend.Factor): Int = when (factor) {
+        OverlayBlend.Factor.ZERO -> GLES30.GL_ZERO
+        OverlayBlend.Factor.ONE -> GLES30.GL_ONE
+        OverlayBlend.Factor.ONE_MINUS_SRC_ALPHA -> GLES30.GL_ONE_MINUS_SRC_ALPHA
+    }
+
     override fun onDrawFrame(gl: GL10?) {
+        // Opaque black for the enhanced view; fully transparent over a camera image, where what is
+        // drawn is premultiplied colour with a real alpha, composited over the image (OverlayBlend).
+        val cameraMode = inputs.cameraMode
+        GLES30.glClearColor(0f, 0f, 0f, if (cameraMode) 0f else 1f)
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
+        val cameraModeUniform = if (cameraMode) 1f else 0f
+        setBlending(OverlayBlend.stars(cameraMode))
+        filter.timeConstantSeconds = if (cameraMode) {
+            OrientationFilter.CAMERA_TIME_CONSTANT_SECONDS
+        } else {
+            OrientationFilter.DEFAULT_TIME_CONSTANT_SECONDS
+        }
 
         val now = System.nanoTime()
         val dtSeconds = if (lastFrameNanos == 0L) 0.0 else (now - lastFrameNanos) / 1e9
@@ -133,6 +163,7 @@ class SkyRenderer(
 
         if (vertices !== uploadedVertices) upload(vertices)
 
+        val fovYDeg = inputs.fovYDeg
         val smoothed = filter.update(rawOrientation, dtSeconds)
         val lstDeg = AstroTime.localSiderealTimeDeg(
             AstroTime.julianDate(System.currentTimeMillis()), observer.longitudeDeg,
@@ -143,7 +174,7 @@ class SkyRenderer(
             lstDeg = lstDeg,
             latitudeDeg = observer.latitudeDeg,
             displayRotation = displayRotation(),
-            fovYDeg = FOV_Y_DEG,
+            fovYDeg = fovYDeg,
             aspect = aspect,
         )
 
@@ -153,34 +184,38 @@ class SkyRenderer(
         // Lines first, so stars are drawn over them.
         inputs.constellationLines?.let { lines ->
             if (lines !== uploadedLines) uploadLines(lines)
-            drawLines()
+            drawLines(cameraModeUniform)
         }
 
         program.use()
         GLES30.glUniformMatrix4fv(uMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uPointScale, pointScale)
         GLES30.glUniform1f(uMaxPointSize, maxPointSize)
+        GLES30.glUniform1f(uCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uLimitMag, inputs.limitingMagnitude.toFloat())
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vbo)
         bindAttribute(StarShaders.ATTRIB_POSITION, 3, StarVertices.POSITION_OFFSET)
         bindAttribute(StarShaders.ATTRIB_SIZE, 1, StarVertices.SIZE_OFFSET)
         bindAttribute(StarShaders.ATTRIB_COLOR, 3, StarVertices.COLOR_OFFSET)
+        bindAttribute(StarShaders.ATTRIB_VMAG, 1, StarVertices.VMAG_OFFSET)
         GLES30.glDrawArrays(GLES30.GL_POINTS, 0, starCount)
 
         inputs.bodyVertices?.let { bodies ->
             if (bodies !== uploadedBodies) uploadBodies(bodies)
-            drawBodies(mvp)
+            drawBodies(mvp, fovYDeg, cameraModeUniform)
         }
     }
 
     /** Sun, Moon and planets over the stars. */
-    private fun drawBodies(mvp: Matrix4) {
+    private fun drawBodies(mvp: Matrix4, fovYDeg: Double, cameraModeUniform: Float) {
         if (bodyCount == 0) return
         bodyProgram.use()
         GLES30.glUniformMatrix4fv(uBodyMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uBodyPointScale, pointScale)
         GLES30.glUniform1f(uBodyMaxPointSize, maxPointSize)
-        setMoonUniforms(mvp)
+        GLES30.glUniform1f(uBodyCameraMode, cameraModeUniform)
+        setMoonUniforms(mvp, fovYDeg)
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, bodyVbo)
         bindBodyAttribute(BodyShaders.ATTRIB_POSITION, 3, BodyVertices.POSITION_OFFSET)
@@ -188,11 +223,10 @@ class SkyRenderer(
         bindBodyAttribute(BodyShaders.ATTRIB_COLOR, 3, BodyVertices.COLOR_OFFSET)
         bindBodyAttribute(BodyShaders.ATTRIB_KIND, 1, BodyVertices.KIND_OFFSET)
 
-        // Premultiplied "over": glows (alpha 0) still add, while the Moon's disc (alpha 1)
-        // hides the stars behind it.
-        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE_MINUS_SRC_ALPHA)
+        // Premultiplied "over": in the enhanced view glows (alpha 0) still add, while the Moon's
+        // disc (alpha 1) hides the stars behind it.
+        setBlending(OverlayBlend.bodies())
         GLES30.glDrawArrays(GLES30.GL_POINTS, 0, bodyCount)
-        GLES30.glBlendFunc(GLES30.GL_ONE, GLES30.GL_ONE)
 
         // These arrays point into the small body buffer. The line pass of the next frame does not
         // read them, and must not be left with enabled arrays that run past the end of their buffer.
@@ -205,7 +239,7 @@ class SkyRenderer(
      * The Moon's lit side in its sprite frame, and how much of its drawn disc is opaque. The
      * drawn disc is enlarged; only the true angular radius (a few dp) may hide what is behind.
      */
-    private fun setMoonUniforms(mvp: Matrix4) {
+    private fun setMoonUniforms(mvp: Matrix4, fovYDeg: Double) {
         val moon = moonDirection
         val sun = moonSunDirection
         // Out of view or unknown: any value will do, since nothing of the Moon is drawn then.
@@ -216,7 +250,7 @@ class SkyRenderer(
         }) ?: Vector3(0.0, 0.0, 1.0)
         GLES30.glUniform3f(uBodyMoonLight, light.x.toFloat(), light.y.toFloat(), light.z.toFloat())
 
-        val focalPx = (viewportHeight / 2.0) / tan(Math.toRadians(FOV_Y_DEG / 2))
+        val focalPx = (viewportHeight / 2.0) / tan(Math.toRadians(fovYDeg / 2))
         val trueRadiusPx = tan(Math.toRadians(BodyAppearance.MOON_TRUE_RADIUS_DEG)) * focalPx
         val drawnSpritePx = min(BodyAppearance.MOON_SPRITE_DP * pointScale, maxPointSize)
         val drawnDiscRadiusPx = drawnSpritePx / 2.0 * BodyAppearance.MOON_DISC_FRACTION
@@ -251,10 +285,11 @@ class SkyRenderer(
         )
     }
 
-    private fun drawLines() {
+    private fun drawLines(cameraModeUniform: Float) {
         if (lineVertexCount == 0) return
         lineProgram.use()
         GLES30.glUniformMatrix4fv(uLineMvp, 1, false, mvpFloats, 0)
+        GLES30.glUniform1f(uLineCameraMode, cameraModeUniform)
         GLES30.glUniform3f(uLineColor, LineShaders.LINE_RED, LineShaders.LINE_GREEN, LineShaders.LINE_BLUE)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, lineVbo)
         GLES30.glEnableVertexAttribArray(LineShaders.ATTRIB_POSITION)
@@ -293,8 +328,6 @@ class SkyRenderer(
     }
 
     private companion object {
-        const val FOV_Y_DEG = 60.0
-
         /** Keeps the shader's smoothstep well defined if the Moon would be vanishingly small. */
         const val MIN_MOON_OCCLUDER = 0.05
     }

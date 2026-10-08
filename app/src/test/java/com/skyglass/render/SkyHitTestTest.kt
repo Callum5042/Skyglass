@@ -16,7 +16,7 @@ class SkyHitTestTest {
     private val density = 3f
     private val mvp = Matrix4.perspective(60.0, width.toDouble() / height, SkyViewMath.NEAR, SkyViewMath.FAR)
 
-    private class Star(val direction: Vector3, val sizeDp: Float)
+    private class Star(val direction: Vector3, val sizeDp: Float, val vmag: Float = 0f)
 
     private fun vertices(vararg stars: Star): FloatArray {
         val out = FloatArray(stars.size * StarVertices.FLOATS_PER_STAR)
@@ -27,6 +27,7 @@ class SkyHitTestTest {
             out[base + StarVertices.POSITION_OFFSET + 1] = d.y.toFloat()
             out[base + StarVertices.POSITION_OFFSET + 2] = d.z.toFloat()
             out[base + StarVertices.SIZE_OFFSET] = s.sizeDp
+            out[base + StarVertices.VMAG_OFFSET] = s.vmag
         }
         return out
     }
@@ -106,6 +107,26 @@ class SkyHitTestTest {
         val x = p.x + 60 // 60 px away
         assertNull("at 1x density 24 dp = 24 px", SkyHitTest.nearestStar(mvp, v, width, height, x, p.y, 1f))
         assertNotNull("at 3x density 24 dp = 72 px", SkyHitTest.nearestStar(mvp, v, width, height, x, p.y, 3f))
+    }
+
+    @Test
+    fun starsDimmedOutByTheLimitingMagnitudeCannotBeTapped() {
+        val v = vertices(Star(centre, 3f, vmag = 5.0f), Star(right, 3f, vmag = 1.0f))
+        val p = screenOf(centre)
+        fun hitWithLimit(limit: Double) = SkyHitTest.nearestStar(mvp, v, width, height, p.x, p.y, density, limit)
+
+        assertEquals("no dimming", 0, hitWithLimit(7.0)?.index)
+        assertEquals("at the limit", 0, hitWithLimit(5.0)?.index)
+        assertNull("just fainter than the limit", hitWithLimit(4.9))
+        // The bright star at the right is 0.2 rad away: far outside the 24 dp reach, so nothing else is hit.
+        assertNull("well past the limit", hitWithLimit(3.0))
+    }
+
+    @Test
+    fun aBrightStarStaysTappableWhenFaintOnesAreDimmed() {
+        val v = vertices(Star(centre, 3f, vmag = 5.0f), Star(right, 3f, vmag = 1.0f))
+        val p = screenOf(right)
+        assertEquals(1, SkyHitTest.nearestStar(mvp, v, width, height, p.x, p.y, density, 2.0)?.index)
     }
 }
 

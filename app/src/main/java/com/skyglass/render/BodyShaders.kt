@@ -7,10 +7,14 @@ import com.skyglass.catalog.BodyAppearance
  * with a shape per body kind: tinted discs for planets, a blazing core and wide glow for the Sun,
  * and a shaded sphere for the Moon so that its phase shows.
  *
- * Output is premultiplied. Glows have alpha 0, so they add to what is behind as the stars do. The
- * Moon is opaque (alpha 1) only within its *true* angular radius, `uMoonOccluder` of the drawn
- * disc: the drawn disc is several times larger than the real Moon, and a star or planet near the
- * Moon must not vanish behind that exaggeration. Draw with `glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)`.
+ * Output is premultiplied. In the enhanced view glows have alpha 0, so they add to what is behind as
+ * the stars do; in the camera view (`uCameraMode` 1) their alpha covers their colour instead (see
+ * [OverlayBlend]). In the enhanced view the Moon is opaque (alpha 1) only within its *true* angular
+ * radius, `uMoonOccluder` of the drawn disc: the drawn disc is several times larger than the real
+ * Moon, and a star or planet near the Moon must not vanish behind that exaggeration. In the camera
+ * view that does not hold: alpha must cover the colour, so the whole drawn disc is nearly opaque
+ * (the lit colour is about 0.93) and does hide what is behind it. Draw with
+ * `glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)`.
  *
  * The Moon's lit side comes from `uMoonLight`, computed on the CPU by [SkyViewMath.spriteLight]
  * where it is unit-tested. The shader's only part in it is the sprite frame: x right, y up, z
@@ -54,6 +58,7 @@ object BodyShaders {
 
         uniform vec3 uMoonLight;       // unit, sprite frame (x right, y up, z toward the viewer)
         uniform float uMoonOccluder;   // true lunar radius as a fraction of the drawn disc's radius
+        uniform float uCameraMode;     // 0 enhanced view, 1 camera view: see OverlayBlend
 
         in vec3 vColor;
         flat in float vKind;
@@ -97,6 +102,10 @@ object BodyShaders {
                 float glow = exp(-5.0 * r2);
                 fragColor = vec4(vColor * (0.75 * glow + 0.45 * core), 0.0);
             }
+
+            // Over a camera image the colour must be covered by alpha (premultiplied). The glows'
+            // alpha 0 is only right on the opaque black of the enhanced view.
+            fragColor.a = max(fragColor.a, uCameraMode * min(1.0, max(max(fragColor.r, fragColor.g), fragColor.b)));
         }
     """.trimIndent()
 }

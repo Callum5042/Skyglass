@@ -37,4 +37,20 @@
     <string name="body_distance_km">%1$,d km from Earth</string>
 
     <string name="action_grant_location">Allow location</string>
+
+    <string name="camera_toggle_label">Camera</string>
+    <string name="status_camera_permission_denied">Camera permission was denied, so the camera view is unavailable. Showing the enhanced sky.</string>
+    <string name="status_camera_permission_blocked">Camera permission is blocked. Allow it in the app settings to use the camera view.</string>
+    <string name="status_camera_unavailable">The camera could not be opened. Showing the enhanced sky.</string>
+    <string name="status_camera_unsupported">The camera view isn’t supported on this device. Showing the enhanced sky.</string>
+    <string name="status_camera_waiting">Waiting for the camera. It may be in use by another app.</string>
+    <string name="action_open_settings">Open settings</string>
+
+    <string name="star_limit_toggle_label">Stars</string>
+    <string name="star_limit_toggle_open">Faintest-stars slider shown</string>
+    <string name="star_limit_toggle_closed">Faintest-stars slider hidden</string>
+    <string name="star_limit_all">Faintest stars: all</string>
+    <string name="star_limit_value">Faintest stars: magnitude %1$.1f · about Bortle %2$d</string>
+    <string name="star_limit_description">Faintest stars shown</string>
+    <string name="star_limit_state">Magnitude %1$.1f. Stars fainter than this fade out.</string>
 </resources>

@@ -20,12 +20,19 @@ class StarVerticesTest {
     }
 
     @Test
-    fun packsSevenFloatsPerStar_withUnitPositions() {
+    fun packsEightFloatsPerStar_withUnitPositions() {
         val data = StarVertices.build(listOf(vega, sirius), AstroTime.JD_J2000 + 9000)
         assertEquals(2 * StarVertices.FLOATS_PER_STAR, data.size)
         assertEquals(1.0, position(data, 0).length(), 1e-6)
         assertEquals(1.0, position(data, 1).length(), 1e-6)
         assertEquals(StarAppearance.pointSizeDp(-1.46), data[StarVertices.FLOATS_PER_STAR + StarVertices.SIZE_OFFSET])
+    }
+
+    @Test
+    fun carriesTheVisualMagnitudeForTheLimitingMagnitudeFilter() {
+        val data = StarVertices.build(listOf(vega, sirius), AstroTime.JD_J2000)
+        assertEquals(0.03f, data[StarVertices.VMAG_OFFSET])
+        assertEquals(-1.46f, data[StarVertices.FLOATS_PER_STAR + StarVertices.VMAG_OFFSET])
     }
 
     @Test

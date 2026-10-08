@@ -1,32 +1,55 @@
 package com.skyglass.ui
 
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.graphics.PixelFormat
+import android.net.Uri
 import android.hardware.SensorManager
 import android.opengl.GLSurfaceView
+import android.provider.Settings
 import android.view.Surface
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -35,7 +58,12 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.skyglass.R
+import com.skyglass.catalog.Bortle
+import com.skyglass.catalog.StarVisibility
 import com.skyglass.render.SkyRenderer
+import kotlinx.coroutines.delay
+
+private const val CAMERA_PERMISSION = Manifest.permission.CAMERA
 
 private val LOCATION_PERMISSIONS = arrayOf(
     Manifest.permission.ACCESS_FINE_LOCATION,
@@ -44,11 +72,19 @@ private val LOCATION_PERMISSIONS = arrayOf(
 
 /** Dim grey keeps the overlay readable without spoiling dark adaptation. */
 private val StatusTextColor = Color(0xFF8A8A8A)
+private val ActiveTextColor = Color(0xFFCBD2E0)
+
+/** How long a camera message stays up if the user does not touch the switch again. */
+private const val CAMERA_PROBLEM_TIMEOUT_MS = 8_000L
+
+/** Info cards sit below the camera toggle, which owns the top-right corner. */
+private val TopControlsHeight = 48.dp
 
 @Composable
 fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val density = LocalDensity.current.density
+    val context = LocalContext.current
     var hasLocationPermission by remember { mutableStateOf(viewModel.hasLocationPermission()) }
     val selectedBody = state.selectedBody?.let { id -> state.bodies.firstOrNull { it.body == id } }
 
@@ -59,18 +95,70 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         if (hasLocationPermission) viewModel.startLocationUpdates()
     }
 
+    // Whether the "faintest stars" slider is showing; the setting itself lives in the view model.
+    var starLimitOpen by rememberSaveable { mutableStateOf(false) }
+
+    var hasCameraPermission by remember { mutableStateOf(viewModel.hasCameraPermission()) }
+    // Read just before each request: see CameraPermissionPolicy.
+    // Saved, because the activity can be recreated while the dialog is up.
+    var rationaleBeforeRequest by rememberSaveable { mutableStateOf(false) }
+
+    // Asked for only when the user first switches to the camera view.
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasCameraPermission = granted
+        if (granted) {
+            viewModel.onCameraPermissionGranted()
+            viewModel.setViewMode(ViewMode.CAMERA)
+        } else {
+            // Once the system stops offering the dialog, asking again returns "denied" at once and
+            // only the app's settings page can grant the permission.
+            val rationaleAfter = context.findActivity()?.shouldShowRequestPermissionRationale(CAMERA_PERMISSION) ?: true
+            val blocked = CameraPermissionPolicy.isBlocked(rationaleBeforeRequest, rationaleAfter, viewModel.cameraPermissionBlocked)
+            viewModel.cameraPermissionBlocked = blocked
+            viewModel.onCameraProblem(if (blocked) CameraProblem.PERMISSION_BLOCKED else CameraProblem.PERMISSION_DENIED)
+        }
+    }
+
+    // A message about the camera is not worth keeping on screen for ever, but only its own timeout may clear it.
+    LaunchedEffect(state.cameraProblemSeq) {
+        if (state.cameraProblem != null) {
+            val seq = state.cameraProblemSeq // `state` is read live: capture it before the delay
+            delay(CAMERA_PROBLEM_TIMEOUT_MS)
+            viewModel.clearCameraProblem(expectedSeq = seq)
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (!hasLocationPermission) permissionLauncher.launch(LOCATION_PERMISSIONS)
     }
 
     LifecycleResumeEffect(viewModel) {
-        // Permission may have been changed in system settings while we were paused.
+        // Permission may have been granted in system settings (which does not restart the app), or
+        // a one-time grant may have expired, while we were paused. Revoking one in settings kills
+        // the process, so that case never gets here.
         hasLocationPermission = viewModel.hasLocationPermission()
+        hasCameraPermission = viewModel.hasCameraPermission()
+        if (hasCameraPermission) viewModel.onCameraPermissionGranted()
+        if (!hasCameraPermission && viewModel.uiState.value.viewMode == ViewMode.CAMERA) {
+            viewModel.onCameraProblem(CameraProblem.PERMISSION_DENIED)
+        }
         viewModel.onResume()
         onPauseOrDispose { viewModel.onPause() }
     }
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
+        // Behind the GL surface, which is translucent and cleared to transparent in camera mode.
+        if (state.viewMode == ViewMode.CAMERA) {
+            CameraPreviewLayer(
+                onFieldOfView = viewModel::onCameraFieldOfView,
+                onProblem = { viewModel.onCameraProblem(CameraProblem.UNAVAILABLE) },
+                onWaiting = viewModel::onCameraWaiting,
+                onUnsupported = { viewModel.onCameraProblem(CameraProblem.UNSUPPORTED) },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
         SkyGlView(viewModel, Modifier.fillMaxSize())
         SkyOverlay(
             renderInputs = viewModel.renderInputs,
@@ -87,7 +175,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .safeDrawingPadding()
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .padding(top = TopControlsHeight),
             )
         }
         selectedBody?.let { body ->
@@ -96,15 +185,67 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .safeDrawingPadding()
-                    .padding(16.dp),
+                    .padding(16.dp)
+                    .padding(top = TopControlsHeight),
             )
         }
-        StatusOverlay(
-            state = state,
-            hasLocationPermission = hasLocationPermission,
-            onRequestPermission = { permissionLauncher.launch(LOCATION_PERMISSIONS) },
+        CameraToggle(
+            checked = state.viewMode == ViewMode.CAMERA,
+            onCheckedChange = { wantCamera ->
+                viewModel.clearCameraProblem()
+                when {
+                    !wantCamera -> viewModel.setViewMode(ViewMode.ENHANCED)
+                    hasCameraPermission -> viewModel.setViewMode(ViewMode.CAMERA)
+                    else -> {
+                        rationaleBeforeRequest = context.findActivity()?.shouldShowRequestPermissionRationale(CAMERA_PERMISSION) ?: false
+                        cameraPermissionLauncher.launch(CAMERA_PERMISSION)
+                    }
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .safeDrawingPadding()
+                .padding(16.dp),
+        )
+        // Bottom: status messages, with the "faintest stars" slider under them.
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
+                .safeDrawingPadding()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            StatusOverlay(
+                state = state,
+                hasLocationPermission = hasLocationPermission,
+                onRequestPermission = { permissionLauncher.launch(LOCATION_PERMISSIONS) },
+                onOpenSettings = {
+                    try {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                        )
+                    } catch (e: ActivityNotFoundException) {
+                        // No settings app to open; the message stays up and says where to go.
+                    }
+                },
+            )
+            if (starLimitOpen) {
+                StarLimitSlider(
+                    limitingMagnitude = state.limitingMagnitude,
+                    onChange = viewModel::setLimitingMagnitude,
+                    onChangeFinished = viewModel::saveLimitingMagnitude,
+                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                )
+            }
+        }
+        // Top left, mirroring the camera switch. The slider itself is hidden until asked for, so it
+        // neither covers the sky nor turns a tap near the bottom edge into a slider move.
+        StarLimitToggle(
+            expanded = starLimitOpen,
+            onClick = { starLimitOpen = !starLimitOpen },
+            modifier = Modifier
+                .align(Alignment.TopStart)
                 .safeDrawingPadding()
                 .padding(16.dp),
         )
@@ -117,6 +258,12 @@ private fun SkyGlView(viewModel: SkyViewModel, modifier: Modifier = Modifier) {
     val glView = remember(context) {
         GLSurfaceView(context).apply {
             setEGLContextClientVersion(3)
+            // Translucent, so the camera preview below shows through wherever nothing is drawn
+            // (the renderer clears to opaque black in the enhanced view). As a media overlay the
+            // surface sits above the preview's surface but still below the Compose layer.
+            setEGLConfigChooser(8, 8, 8, 8, 0, 0)
+            holder.setFormat(PixelFormat.TRANSLUCENT)
+            setZOrderMediaOverlay(true)
             preserveEGLContextOnPause = true
             val view = this
             setRenderer(
@@ -145,6 +292,7 @@ private fun StatusOverlay(
     state: SkyUiState,
     hasLocationPermission: Boolean,
     onRequestPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val message = when {
@@ -157,11 +305,32 @@ private fun StatusOverlay(
         else -> null
     }
 
+    val cameraMessage = if (state.cameraWaiting) stringResource(R.string.status_camera_waiting) else when (state.cameraProblem) {
+        CameraProblem.PERMISSION_DENIED -> stringResource(R.string.status_camera_permission_denied)
+        CameraProblem.PERMISSION_BLOCKED -> stringResource(R.string.status_camera_permission_blocked)
+        CameraProblem.UNAVAILABLE -> stringResource(R.string.status_camera_unavailable)
+        CameraProblem.UNSUPPORTED -> stringResource(R.string.status_camera_unsupported)
+        null -> null
+    }
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (cameraMessage != null) {
+            Text(
+                text = cameraMessage,
+                color = StatusTextColor,
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (state.cameraProblem == CameraProblem.PERMISSION_BLOCKED) {
+            OutlinedButton(onClick = onOpenSettings) {
+                Text(stringResource(R.string.action_open_settings), color = StatusTextColor)
+            }
+        }
         if (message != null) {
             Text(
                 text = message,
@@ -190,4 +359,97 @@ private fun StatusOverlay(
             )
         }
     }
+}
+
+/** Switches between the enhanced sky (off) and the live camera image (on). */
+@Composable
+private fun CameraToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .heightIn(min = 48.dp) // the Switch alone is only ~32 dp tall
+            .background(CardBackground, RoundedCornerShape(24.dp))
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
+            .padding(start = 16.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.camera_toggle_label),
+            color = StatusTextColor,
+            style = MaterialTheme.typography.labelLarge,
+        )
+        Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/** Opens and closes the [StarLimitSlider]. At least 48 dp tall, like the camera switch. */
+@Composable
+private fun StarLimitToggle(expanded: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val stateText = stringResource(if (expanded) R.string.star_limit_toggle_open else R.string.star_limit_toggle_closed)
+    Box(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .background(CardBackground, RoundedCornerShape(24.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { stateDescription = stateText }
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.star_limit_toggle_label),
+            color = if (expanded) ActiveTextColor else StatusTextColor,
+            style = MaterialTheme.typography.labelLarge,
+        )
+    }
+}
+
+/**
+ * Dims the stars: the slider sets the faintest magnitude drawn, from the very brightest stars only
+ * (left) to every star in the catalogue (right, "all"). The Bortle class in the label above the
+ * slider is a rough guide for matching it to the sky at hand; see [Bortle]. Values move in steps
+ * of 0.1 (the view model snaps them), so the label and the class always describe what is applied.
+ */
+@Composable
+private fun StarLimitSlider(
+    limitingMagnitude: Double,
+    onChange: (Double) -> Unit,
+    onChangeFinished: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = if (StarVisibility.isUnlimited(limitingMagnitude)) {
+        stringResource(R.string.star_limit_all)
+    } else {
+        stringResource(R.string.star_limit_value, limitingMagnitude, Bortle.classForLimitingMagnitude(limitingMagnitude))
+    }
+    val description = stringResource(R.string.star_limit_description)
+    val state = stringResource(R.string.star_limit_state, limitingMagnitude)
+    Column(
+        modifier = modifier
+            .background(CardBackground, RoundedCornerShape(24.dp))
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp),
+    ) {
+        Text(text = label, color = StatusTextColor, style = MaterialTheme.typography.labelLarge)
+        Slider(
+            value = limitingMagnitude.toFloat(),
+            onValueChange = { onChange(it.toDouble()) },
+            onValueChangeFinished = onChangeFinished,
+            valueRange = StarVisibility.MIN_LIMIT.toFloat()..StarVisibility.MAX_LIMIT.toFloat(),
+            colors = SliderDefaults.colors(
+                thumbColor = StatusTextColor,
+                activeTrackColor = StatusTextColor,
+                inactiveTrackColor = StatusTextColor.copy(alpha = 0.3f),
+            ),
+            // Material's slider is already 48 dp tall, the minimum touch target.
+            modifier = Modifier.semantics {
+                contentDescription = description
+                stateDescription = state
+            },
+        )
+    }
+}
+
+private tailrec fun Context.findActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

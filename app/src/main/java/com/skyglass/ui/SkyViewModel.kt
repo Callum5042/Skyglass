@@ -2,8 +2,12 @@ package com.skyglass.ui
 
 import android.annotation.SuppressLint
 import android.app.Application
+import android.content.Context
+import android.Manifest
+import android.content.pm.PackageManager
 import android.hardware.SensorManager
 import android.location.Location
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.skyglass.astro.AstroTime
@@ -18,6 +22,7 @@ import com.skyglass.catalog.Star
 import com.skyglass.catalog.StarCatalog
 import com.skyglass.catalog.StarDescription
 import com.skyglass.catalog.StarNamer
+import com.skyglass.catalog.StarVisibility
 import com.skyglass.catalog.StarVertices
 import com.skyglass.math.Vector3
 import com.skyglass.render.Observer
@@ -36,6 +41,27 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** What is behind the stars: the plain black sky, or the live rear-camera image. */
+enum class ViewMode { ENHANCED, CAMERA }
+
+/** Why the camera view is not showing although the user asked for it; shown in the status overlay. */
+enum class CameraProblem {
+    PERMISSION_DENIED,
+
+    /** Denied with "don't ask again" (or twice): the system dialog will not appear, only app settings can fix it. */
+    PERMISSION_BLOCKED,
+
+    /**
+     * The camera will not open: disabled by policy, a fatal error, do-not-disturb mode, or a stream
+     * configuration it cannot do. (A camera in use by another app is *not* this: CameraX keeps
+     * retrying, so the view stays up with [SkyUiState.cameraWaiting] set.)
+     */
+    UNAVAILABLE,
+
+    /** The preview would be drawn above the GL surface and hide the sky; see `CameraPreviewLayer`. */
+    UNSUPPORTED,
+}
+
 /** The star the user tapped, with where it is in the sky so the overlay can ring it. */
 data class SelectedStar(val description: StarDescription, val direction: Vector3)
 
@@ -52,6 +78,15 @@ data class SkyUiState(
     val bodies: List<BodyPosition> = emptyList(),
     /** The tapped body; its current position is looked up in [bodies] so the ring follows it. */
     val selectedBody: SkyBody? = null,
+    val viewMode: ViewMode = ViewMode.ENHANCED,
+    /** Set when the camera view could not be shown; cleared once it is. */
+    val cameraProblem: CameraProblem? = null,
+    /** Bumped each time a problem is reported, so a timeout started for one message cannot clear a newer one. */
+    val cameraProblemSeq: Int = 0,
+    /** In the camera view, CameraX is waiting to open a camera that is busy (e.g. in use by another app). */
+    val cameraWaiting: Boolean = false,
+    /** The "faintest stars" slider: stars fainter than this fade out (see `StarVisibility`). */
+    val limitingMagnitude: Double = StarVisibility.DEFAULT_LIMIT,
 )
 
 private class LoadedSky(
@@ -74,10 +109,19 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private var locationJob: Job? = null
     private var bodyJob: Job? = null
 
-    private val _uiState = MutableStateFlow(SkyUiState(hasRotationSensor = orientationSensor.isAvailable))
+    // Display settings the user chooses, kept apart from the camera state below. Safe to back up.
+    private val displayPreferences = application.getSharedPreferences(DISPLAY_PREFERENCES_NAME, Context.MODE_PRIVATE)
+    private val savedLimitingMagnitude = StarVisibility.snapLimit(
+        displayPreferences.getFloat(KEY_LIMITING_MAGNITUDE, StarVisibility.DEFAULT_LIMIT.toFloat()).toDouble(),
+    )
+
+    private val _uiState = MutableStateFlow(
+        SkyUiState(hasRotationSensor = orientationSensor.isAvailable, limitingMagnitude = savedLimitingMagnitude),
+    )
     val uiState: StateFlow<SkyUiState> = _uiState.asStateFlow()
 
     init {
+        renderInputs.limitingMagnitude = savedLimitingMagnitude
         viewModelScope.launch {
             val sky = withContext(Dispatchers.IO) {
                 val assets = application.assets
@@ -124,7 +168,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                 mvp, bodies, widthPx, heightPx, x.toDouble(), y.toDouble(), density, renderInputs.maxPointSizePx,
             )
             val starHit = if (vertices != null && namer != null) {
-                SkyHitTest.nearestStar(mvp, vertices, widthPx, heightPx, x.toDouble(), y.toDouble(), density)
+                SkyHitTest.nearestStar(
+                    mvp, vertices, widthPx, heightPx, x.toDouble(), y.toDouble(), density, renderInputs.limitingMagnitude,
+                )
             } else {
                 null
             }
@@ -143,7 +189,100 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(selectedStar = selectedStar, selectedBody = selectedBody) }
     }
 
+    /**
+     * Sets how faint a star may be and still be drawn (the "faintest stars" slider). Applies at once
+     * to the renderer and to tapping; call [saveLimitingMagnitude] when the drag ends to keep it.
+     * A selected star that this dims out of sight is deselected.
+     */
+    fun setLimitingMagnitude(value: Double) {
+        val limit = StarVisibility.snapLimit(value)
+        renderInputs.limitingMagnitude = limit
+        _uiState.update { state ->
+            val selected = state.selectedStar
+            val keep = StarVisibility.keepsSelection(selected?.description?.vmag, limit)
+            state.copy(limitingMagnitude = limit, selectedStar = if (keep) selected else null)
+        }
+    }
+
+    /** Persists the current "faintest stars" setting across restarts. */
+    fun saveLimitingMagnitude() {
+        displayPreferences.edit().putFloat(KEY_LIMITING_MAGNITUDE, _uiState.value.limitingMagnitude.toFloat()).apply()
+    }
+
     fun hasLocationPermission(): Boolean = locationSource.hasPermission()
+
+    fun hasCameraPermission(): Boolean =
+        ContextCompat.checkSelfPermission(getApplication(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Switches between the enhanced sky and the camera view. Taps keep working in both: they are
+     * resolved with the MVP of the last frame, which in camera mode uses the camera's field of
+     * view (see [onCameraFieldOfView]). Leaving the camera view restores the default field of view.
+     */
+    fun setViewMode(mode: ViewMode) {
+        renderInputs.cameraMode = mode == ViewMode.CAMERA
+        if (mode == ViewMode.ENHANCED) renderInputs.fovYDeg = SkyRenderInputs.DEFAULT_FOV_Y_DEG
+        _uiState.update {
+            it.copy(
+                viewMode = mode,
+                cameraProblem = if (mode == ViewMode.CAMERA) null else it.cameraProblem,
+                cameraWaiting = false,
+            )
+        }
+    }
+
+    /** The camera view could not be shown: return to the enhanced sky and say why. */
+    fun onCameraProblem(problem: CameraProblem) {
+        setViewMode(ViewMode.ENHANCED)
+        _uiState.update { it.copy(cameraProblem = problem, cameraProblemSeq = it.cameraProblemSeq + 1) }
+    }
+
+    /**
+     * Removes the camera message. With [expectedSeq] (from [SkyUiState.cameraProblemSeq]) only if
+     * it is still that message, so a timeout cannot wipe a newer one.
+     */
+    fun clearCameraProblem(expectedSeq: Int? = null) {
+        _uiState.update {
+            if (it.cameraProblem == null || (expectedSeq != null && it.cameraProblemSeq != expectedSeq)) it
+            else it.copy(cameraProblem = null)
+        }
+    }
+
+    /** The camera is busy and CameraX is retrying ([waiting]), or it has opened. */
+    fun onCameraWaiting(waiting: Boolean) {
+        _uiState.update { if (it.cameraWaiting == waiting) it else it.copy(cameraWaiting = waiting) }
+    }
+
+    private val preferences = application.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+
+    /**
+     * True once a camera permission request has been found to be blocked (the system will no
+     * longer show the dialog), until the permission is granted. See [CameraPermissionPolicy].
+     *
+     * Kept in SharedPreferences, not memory: after a process restart `shouldShowRequestPermissionRationale`
+     * is false both before and after an instantly refused request, so without this the user could
+     * never be sent to the settings page again. Excluded from backup (it describes this device).
+     */
+    var cameraPermissionBlocked: Boolean
+        get() = preferences.getBoolean(KEY_CAMERA_PERMISSION_BLOCKED, false)
+        set(value) = preferences.edit().putBoolean(KEY_CAMERA_PERMISSION_BLOCKED, value).apply()
+
+    /** The camera permission is held (granted just now, or found granted on resume): forget any complaint about it. */
+    fun onCameraPermissionGranted() {
+        cameraPermissionBlocked = false
+        _uiState.update {
+            if (it.cameraProblem == CameraProblem.PERMISSION_DENIED || it.cameraProblem == CameraProblem.PERMISSION_BLOCKED) {
+                it.copy(cameraProblem = null)
+            } else {
+                it
+            }
+        }
+    }
+
+    /** The vertical field of view of the camera preview as laid out, for the projection to match. */
+    fun onCameraFieldOfView(fovYDeg: Double) {
+        if (_uiState.value.viewMode == ViewMode.CAMERA) renderInputs.fovYDeg = fovYDeg
+    }
 
     fun onResume() {
         orientationSensor.start()
@@ -211,5 +350,13 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val BODY_UPDATE_INTERVAL_MS = 10_000L
+
+        /** Also named in `res/xml/backup_rules.xml` and `data_extraction_rules.xml`. */
+        const val PREFERENCES_NAME = "camera_permission_state"
+        const val KEY_CAMERA_PERMISSION_BLOCKED = "blocked"
+
+        /** User settings; unlike the camera file this one is deliberately left in backups. */
+        const val DISPLAY_PREFERENCES_NAME = "display_settings"
+        const val KEY_LIMITING_MAGNITUDE = "limiting_magnitude"
     }
 }

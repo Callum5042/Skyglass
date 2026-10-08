@@ -3,6 +3,7 @@ package com.skyglass.render
 import com.skyglass.astro.BodyPosition
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.StarVertices
+import com.skyglass.catalog.StarVisibility
 import com.skyglass.math.Matrix4
 import kotlin.math.hypot
 import kotlin.math.max
@@ -24,7 +25,8 @@ object SkyHitTest {
      * Finds the star nearest to ([tapX], [tapY]) among those in [vertices] (the layout of
      * [StarVertices]) that lie within reach of the tap. A star's reach is the larger of
      * [MIN_TAP_RADIUS_DP] and the radius of its drawn sprite, so a big bright star can be hit
-     * anywhere on its glow. Stars behind the viewer are ignored.
+     * anywhere on its glow. Stars behind the viewer are ignored, as are stars the "faintest stars"
+     * [limitingMagnitude] excludes (fainter than it; see [StarVisibility]).
      *
      * @param density pixels per dp
      */
@@ -36,11 +38,13 @@ object SkyHitTest {
         tapX: Double,
         tapY: Double,
         density: Float,
+        limitingMagnitude: Double = StarVisibility.DEFAULT_LIMIT,
     ): StarHit? {
         val minRadiusPx = MIN_TAP_RADIUS_DP * density
         var best: StarHit? = null
         for (i in 0 until vertices.size / StarVertices.FLOATS_PER_STAR) {
             val base = i * StarVertices.FLOATS_PER_STAR
+            if (!StarVisibility.isTappable(vertices[base + StarVertices.VMAG_OFFSET].toDouble(), limitingMagnitude)) continue
             val p = SkyProjection.project(
                 mvp,
                 vertices[base + StarVertices.POSITION_OFFSET].toDouble(),

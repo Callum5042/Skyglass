@@ -43,7 +43,7 @@ private val ConstellationLabelColor = Color(0xFF7B8FB8)
 /** Warmer than the constellation labels, so the Sun, Moon and planets read as a different kind of object. */
 private val BodyLabelColor = Color(0xFFD2BE94)
 private val SelectionRingColor = Color(0xFFB8C4DC)
-private val CardBackground = Color(0xCC0B0D12)
+internal val CardBackground = Color(0xCC0B0D12)
 private val CardTextColor = Color(0xFFCBD2E0)
 private val CardSecondaryTextColor = Color(0xFF8A93A6)
 

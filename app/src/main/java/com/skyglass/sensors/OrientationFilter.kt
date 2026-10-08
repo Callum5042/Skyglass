@@ -10,9 +10,10 @@ import kotlin.math.exp
  * The blend factor is derived from elapsed time, so the response is the same regardless of the
  * display's frame rate.
  *
- * @param timeConstantSeconds time to cover ~63% of a step change; larger is smoother but laggier
+ * @property timeConstantSeconds time to cover ~63% of a step change; larger is smoother but laggier.
+ *   It may be changed at any time, e.g. to follow the sensor closely while a camera image is behind the sky.
  */
-class OrientationFilter(private val timeConstantSeconds: Double = DEFAULT_TIME_CONSTANT_SECONDS) {
+class OrientationFilter(var timeConstantSeconds: Double = DEFAULT_TIME_CONSTANT_SECONDS) {
 
     private var current: Quaternion? = null
 
@@ -34,5 +35,14 @@ class OrientationFilter(private val timeConstantSeconds: Double = DEFAULT_TIME_C
 
     companion object {
         const val DEFAULT_TIME_CONSTANT_SECONDS = 0.1
+
+        /**
+         * Over a live camera image, filter lag shows as the sky trailing the stars while panning
+         * (an exponential filter lags a steady turn by exactly its time constant). But the preview
+         * itself is typically tens of milliseconds behind the world, so no lag at all would make
+         * the sky lead it, and less smoothing shows more sensor jitter. This is a compromise
+         * between the two that has NOT been tuned on a device; pan across a bright star and adjust.
+         */
+        const val CAMERA_TIME_CONSTANT_SECONDS = 0.05
     }
 }

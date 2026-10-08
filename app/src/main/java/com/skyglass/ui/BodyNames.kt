@@ -5,6 +5,7 @@ import com.skyglass.R
 import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.MoonPhase
 import com.skyglass.astro.SkyBody
+import com.skyglass.catalog.SearchKind
 import com.skyglass.catalog.StarColorName
 
 /** Display-name resources for the pure-Kotlin astro types, so the UI text lives in `strings.xml`. */
@@ -54,4 +55,11 @@ fun StarColorName.nameRes(): Int = when (this) {
     StarColorName.YELLOW -> R.string.star_color_yellow
     StarColorName.ORANGE -> R.string.star_color_orange
     StarColorName.RED -> R.string.star_color_red
+}
+
+@StringRes
+fun SearchKind.labelRes(): Int = when (this) {
+    SearchKind.BODY -> R.string.search_kind_body
+    SearchKind.CONSTELLATION -> R.string.search_kind_constellation
+    SearchKind.STAR -> R.string.search_kind_star
 }

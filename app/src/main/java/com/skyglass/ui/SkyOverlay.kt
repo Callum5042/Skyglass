@@ -14,7 +14,10 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -25,8 +28,17 @@ import com.skyglass.astro.BodyPosition
 import com.skyglass.astro.SkyBody
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.ConstellationLabel
+import com.skyglass.catalog.NavigationTarget
+import com.skyglass.catalog.SearchKind
+import com.skyglass.render.EdgeArrow
+import com.skyglass.render.NavInsets
+import com.skyglass.render.ScreenPoint
+import com.skyglass.render.SkyNavigation
 import com.skyglass.render.SkyProjection
 import com.skyglass.render.SkyRenderInputs
+import kotlin.math.cos
+import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** Dim, slightly blue so labels sit behind the stars without spoiling dark adaptation. */
 private val ConstellationLabelColor = Color(0xFF7B8FB8)
@@ -34,6 +46,10 @@ private val ConstellationLabelColor = Color(0xFF7B8FB8)
 /** Warmer than the constellation labels, so the Sun, Moon and planets read as a different kind of object. */
 private val BodyLabelColor = Color(0xFFD2BE94)
 private val SelectionRingColor = Color(0xFFB8C4DC)
+
+/** Amber, so the search target stands out from the blue-grey selection ring and the labels without being bright. */
+internal val NavigationColor = Color(0xFFE8B84A)
+private val NavigationOutlineColor = Color(0x99000000)
 internal val CardBackground = Color(0xCC0B0D12)
 internal val CardTextColor = Color(0xFFCBD2E0)
 internal val CardSecondaryTextColor = Color(0xFF8A93A6)
@@ -46,11 +62,31 @@ private const val BODY_LABEL_GAP_DP = 4f
 private const val BODY_RING_GAP_DP = 6f
 
 /**
+ * Radius of the marker round a search target that is in view: outside the selection ring of a star
+ * and of a body's disc, much larger round a constellation, whose "position" is the middle of its figure.
+ */
+private const val TARGET_STAR_RADIUS_DP = 28f
+private const val TARGET_BODY_GAP_DP = 18f
+private const val TARGET_CONSTELLATION_RADIUS_DP = 64f
+private const val TARGET_TICK_LENGTH_DP = 8f
+
+/** The edge arrow: its size, and how far the distance label sits from it toward the middle of the view. */
+private const val ARROW_SIZE_DP = 18f
+private const val ARROW_LABEL_OFFSET_DP = 34f
+
+/**
  * Transparent layer over the GL view that draws constellation names, the names of the Sun, Moon
  * and planets, and a ring round the selected star or body, all placed with the MVP of the latest
  * GL frame, and reports taps.
  *
+ * While [navigation] is set it also guides the user to the searched-for target (see [SkyNavigation]):
+ * an arrow at the edge of the usable view, labelled with the angle to turn, while the target is out
+ * of view, and a marker round it once it is on screen. Both follow the same MVP as everything else,
+ * so they hold in the camera view too.
+ *
  * It redraws on every display frame; the draw lambda only reads state, so nothing recomposes.
+ *
+ * @param navigationInsets space in pixels the arrow keeps clear at each edge (toggles, cards, panels)
  */
 @Composable
 fun SkyOverlay(
@@ -59,6 +95,8 @@ fun SkyOverlay(
     bodies: List<BodyPosition>,
     selectedStar: SelectedStar?,
     selectedBody: BodyPosition?,
+    navigation: NavigationTarget?,
+    navigationInsets: NavInsets,
     onTap: (x: Float, y: Float, widthPx: Int, heightPx: Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -72,6 +110,16 @@ fun SkyOverlay(
     }
     val ringRadiusPx = with(LocalDensity.current) { RING_RADIUS_DP.dp.toPx() }
     val currentOnTap by rememberUpdatedState(onTap)
+    val arrowSizePx = with(LocalDensity.current) { ARROW_SIZE_DP.dp.toPx() }
+    val arrowPath = remember(arrowSizePx) {
+        Path().apply { // pointing right (+x), centred near the origin; rotated to the target's direction when drawn
+            moveTo(arrowSizePx, 0f)
+            lineTo(-0.7f * arrowSizePx, 0.8f * arrowSizePx)
+            lineTo(-0.3f * arrowSizePx, 0f)
+            lineTo(-0.7f * arrowSizePx, -0.8f * arrowSizePx)
+            close()
+        }
+    }
 
     var frameTick by remember { mutableLongStateOf(0L) }
     LaunchedEffect(Unit) {
@@ -137,5 +185,59 @@ fun SkyOverlay(
                 )
             }
         }
+
+        val targetDirection = navigation?.directionIn(bodies)
+        if (navigation != null && targetDirection != null) {
+            val guidance = SkyNavigation.guide(mvp, targetDirection, width, height, navigationInsets)
+            guidance.onScreen?.let { point ->
+                val radiusPx = when (navigation.result.kind) {
+                    SearchKind.STAR -> TARGET_STAR_RADIUS_DP.dp.toPx()
+                    SearchKind.CONSTELLATION -> TARGET_CONSTELLATION_RADIUS_DP.dp.toPx()
+                    SearchKind.BODY -> {
+                        val body = bodies.firstOrNull { it.direction == targetDirection }
+                        maxOf(TARGET_STAR_RADIUS_DP, (body?.let(BodyAppearance::discRadiusDp) ?: 0f) + TARGET_BODY_GAP_DP).dp.toPx()
+                    }
+                }
+                drawTargetMarker(point, radiusPx)
+            }
+            guidance.arrow?.let { arrow ->
+                drawGuideArrow(arrow, arrowPath)
+                val layout = textMeasurer.measure("${guidance.angularDistanceDeg.roundToInt()}°", bodyLabelStyle)
+                val inward = Math.toRadians(arrow.angleDeg + 180.0)
+                val offset = ARROW_LABEL_OFFSET_DP.dp.toPx()
+                drawText(
+                    layout,
+                    color = NavigationColor,
+                    topLeft = Offset(
+                        arrow.position.x.toFloat() + cos(inward).toFloat() * offset - layout.size.width / 2f,
+                        arrow.position.y.toFloat() + sin(inward).toFloat() * offset - layout.size.height / 2f,
+                    ),
+                )
+            }
+        }
+    }
+}
+
+/** A ring with four ticks pointing in, round the search target: unlike the plain selection ring it reads as "here". */
+private fun DrawScope.drawTargetMarker(center: ScreenPoint, radiusPx: Float) {
+    val c = Offset(center.x.toFloat(), center.y.toFloat())
+    val tick = TARGET_TICK_LENGTH_DP.dp.toPx()
+    drawCircle(NavigationOutlineColor, radius = radiusPx, center = c, style = Stroke(width = 4.dp.toPx()))
+    drawCircle(NavigationColor, radius = radiusPx, center = c, style = Stroke(width = 2.dp.toPx()))
+    for (quarter in 0 until 4) {
+        val angle = Math.toRadians(90.0 * quarter)
+        val direction = Offset(cos(angle).toFloat(), sin(angle).toFloat())
+        drawLine(NavigationColor, c + direction * radiusPx, c + direction * (radiusPx - tick), strokeWidth = 2.dp.toPx())
+    }
+}
+
+/** [arrowPath] (pointing right) turned to the arrow's direction, with a dark outline so it shows over a bright camera image. */
+private fun DrawScope.drawGuideArrow(arrow: EdgeArrow, arrowPath: Path) {
+    withTransform({
+        translate(arrow.position.x.toFloat(), arrow.position.y.toFloat())
+        rotate(arrow.angleDeg.toFloat(), pivot = Offset.Zero) // clockwise, as screen y points down
+    }) {
+        drawPath(arrowPath, NavigationOutlineColor, style = Stroke(width = 4.dp.toPx()))
+        drawPath(arrowPath, NavigationColor)
     }
 }

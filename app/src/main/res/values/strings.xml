@@ -103,4 +103,20 @@
     <string name="star_limit_value">Faintest stars: magnitude %1$.1f · about Bortle %2$d</string>
     <string name="star_limit_description">Faintest stars shown</string>
     <string name="star_limit_state">Magnitude %1$.1f. Stars fainter than this fade out.</string>
+
+    <string name="search_toggle_label">Search</string>
+    <string name="search_toggle_open">Search shown</string>
+    <string name="search_toggle_closed">Search hidden</string>
+    <string name="search_hint">Search stars, planets, constellations</string>
+    <string name="search_close">Close search</string>
+    <string name="search_no_matches">No matches</string>
+    <string name="search_kind_star">Star</string>
+    <string name="search_kind_body">Solar system</string>
+    <string name="search_kind_constellation">Constellation</string>
+
+    <string name="navigation_title">Finding %1$s</string>
+    <string name="navigation_stop">Stop</string>
+    <string name="navigation_stop_description">Stop guiding to %1$s</string>
+    <string name="navigation_below_horizon">Below the horizon, toward %1$s</string>
+    <string name="navigation_hidden_by_limit">Hidden by the faintest-stars setting</string>
 </resources>

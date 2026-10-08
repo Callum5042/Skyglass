@@ -20,6 +20,10 @@ import com.skyglass.catalog.BodyVertices
 import com.skyglass.catalog.ConstellationGeometry
 import com.skyglass.catalog.ConstellationLabel
 import com.skyglass.catalog.ConstellationSky
+import com.skyglass.catalog.NavigationTarget
+import com.skyglass.catalog.SearchResult
+import com.skyglass.catalog.SearchTarget
+import com.skyglass.catalog.SkySearchIndex
 import com.skyglass.catalog.Star
 import com.skyglass.catalog.StarCatalog
 import com.skyglass.catalog.StarDescription
@@ -98,6 +102,8 @@ data class SkyUiState(
     val julianDate: Double? = null,
     /** Rise and set of the tapped star or body; null until calculated (in the background) and when nothing is tapped. */
     val riseSet: RiseSetTimes? = null,
+    /** What the user searched for and is being guided to, until they stop; see [SkyViewModel.navigateTo]. */
+    val navigation: NavigationTarget? = null,
 )
 
 private class LoadedSky(
@@ -105,6 +111,7 @@ private class LoadedSky(
     val vertices: FloatArray,
     val constellations: ConstellationSky,
     val namer: StarNamer,
+    val searchIndex: SkySearchIndex,
 )
 
 class SkyViewModel(application: Application) : AndroidViewModel(application) {
@@ -115,6 +122,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     // Stars in the same order as the vertex buffer, and what the tap overlay needs to describe them.
     private var stars: List<Star> = emptyList()
     private var starNamer: StarNamer? = null
+    private var starIndexByHr: Map<Int, Int> = emptyMap()
+    private var searchIndex: SkySearchIndex? = null
 
     private val locationSource = LocationSource(application)
     private var locationJob: Job? = null
@@ -140,15 +149,25 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                 val loadedStars = StarCatalog.loadNakedEyeStars(assets)
                 val constellations = StarCatalog.loadConstellations(assets)
                 val julianDate = AstroTime.julianDate(System.currentTimeMillis())
+                val namer = StarNamer(StarCatalog.loadProperNames(assets), constellations)
+                val constellationSky = ConstellationGeometry.build(constellations, loadedStars, julianDate)
                 LoadedSky(
                     stars = loadedStars,
                     vertices = StarVertices.build(loadedStars, julianDate),
-                    constellations = ConstellationGeometry.build(constellations, loadedStars, julianDate),
-                    namer = StarNamer(StarCatalog.loadProperNames(assets), constellations),
+                    constellations = constellationSky,
+                    namer = namer,
+                    searchIndex = SkySearchIndex.build(
+                        loadedStars,
+                        namer,
+                        constellationSky.labels.map { it.name },
+                        SkyBody.entries.associateWith { application.getString(it.nameRes()) },
+                    ),
                 )
             }
             stars = sky.stars
             starNamer = sky.namer
+            starIndexByHr = sky.stars.withIndex().associate { (i, star) -> star.hr to i }
+            searchIndex = sky.searchIndex
             renderInputs.constellationLines = sky.constellations.lineVertices
             renderInputs.starVertices = sky.vertices
             _uiState.update {
@@ -189,17 +208,59 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             if (bodyHit != null && (starHit == null || bodyHit.distancePx <= starHit.distancePx)) {
                 selectedBody = bodies[bodyHit.index].body
             } else if (starHit != null && vertices != null && namer != null) {
-                val base = starHit.index * StarVertices.FLOATS_PER_STAR + StarVertices.POSITION_OFFSET
-                selectedStar = SelectedStar(
-                    description = namer.describe(stars[starHit.index]),
-                    direction = Vector3(
-                        vertices[base].toDouble(), vertices[base + 1].toDouble(), vertices[base + 2].toDouble(),
-                    ),
-                )
+                selectedStar = SelectedStar(namer.describe(stars[starHit.index]), starDirection(vertices, starHit.index))
             }
         }
         _uiState.update { it.copy(selectedStar = selectedStar, selectedBody = selectedBody, riseSet = null) }
         refreshRiseSet()
+    }
+
+    private fun starDirection(vertices: FloatArray, index: Int): Vector3 {
+        val base = index * StarVertices.FLOATS_PER_STAR + StarVertices.POSITION_OFFSET
+        return Vector3(vertices[base].toDouble(), vertices[base + 1].toDouble(), vertices[base + 2].toDouble())
+    }
+
+    /** Results for the search box, best first; empty until the catalogue has loaded. See [SkySearchIndex]. */
+    fun search(query: String): List<SearchResult> = searchIndex?.search(query).orEmpty()
+
+    /**
+     * Starts guiding the user to a search [result] and selects it, so the details card opens (a
+     * constellation has none, so any selection is cleared instead). The guidance itself is drawn
+     * by `SkyOverlay`: an arrow at the edge of the view while the target is off screen, a marker on it
+     * once it is in view. It lasts until [stopNavigation], through taps and the camera switch.
+     */
+    fun navigateTo(result: SearchResult) {
+        var selectedStar: SelectedStar? = null
+        var selectedBody: SkyBody? = null
+        var fixedDirection: Vector3? = null
+        when (val target = result.target) {
+            is SearchTarget.StarTarget -> {
+                val vertices = renderInputs.starVertices
+                val namer = starNamer
+                val index = starIndexByHr[target.hr]
+                if (vertices == null || namer == null || index == null) return
+                val direction = starDirection(vertices, index)
+                fixedDirection = direction
+                selectedStar = SelectedStar(namer.describe(stars[index]), direction)
+            }
+            is SearchTarget.BodyTarget -> selectedBody = target.body
+            is SearchTarget.ConstellationTarget ->
+                fixedDirection = _uiState.value.constellationLabels.firstOrNull { it.name == target.name }?.direction ?: return
+        }
+        _uiState.update {
+            it.copy(
+                selectedStar = selectedStar,
+                selectedBody = selectedBody,
+                riseSet = null,
+                navigation = NavigationTarget(result, fixedDirection),
+            )
+        }
+        refreshRiseSet()
+    }
+
+    /** Ends the guidance. The object stays selected, so its card is not taken away. */
+    fun stopNavigation() {
+        _uiState.update { it.copy(navigation = null) }
     }
 
     /** Dismisses the details card (the same as tapping empty sky). */

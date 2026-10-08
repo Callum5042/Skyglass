@@ -61,6 +61,9 @@ class StarNamer(
         abbreviationsByHr(constellations),
     )
 
+    /** The traditional name ("Sirius"), if the proper-name table has one for this star. */
+    fun properName(star: Star): String? = properNames[star.hr]
+
     fun describe(star: Star): StarDescription {
         val designation = designation(star)
         val title = properNames[star.hr] ?: designation ?: "HR ${star.hr}"

@@ -12,6 +12,7 @@ import android.opengl.GLSurfaceView
 import android.provider.Settings
 import android.view.Surface
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -22,10 +23,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,8 +48,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -60,8 +68,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.skyglass.R
 import com.skyglass.catalog.Bortle
 import com.skyglass.catalog.StarVisibility
+import com.skyglass.render.NavInsets
 import com.skyglass.render.SkyRenderer
 import kotlinx.coroutines.delay
+import kotlin.math.max
 
 private const val CAMERA_PERMISSION = Manifest.permission.CAMERA
 
@@ -79,6 +89,10 @@ private const val CAMERA_PROBLEM_TIMEOUT_MS = 8_000L
 
 /** Info cards sit below the camera toggle, which owns the top-right corner. */
 private val TopControlsHeight = 48.dp
+
+/** Page margin round every panel, and how far the guidance arrow's centre stays from what it must not cover. */
+private val ScreenMargin = 16.dp
+private val NavigationArrowMargin = 28.dp
 
 @Composable
 fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
@@ -100,6 +114,31 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
 
     // Whether the tapped object's card shows all its details; kept across taps, so the choice sticks.
     var detailsExpanded by rememberSaveable { mutableStateOf(false) }
+
+    // The search panel and what is typed in it. Choosing a result closes the panel and empties the box.
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    BackHandler(enabled = searchOpen) { searchOpen = false }
+
+    // Where the panels sit, measured, so the guidance arrow stays clear of them: the bottom of the
+    // details card, the top of the bottom panel and the height of the screen (all in pixels).
+    var infoCardBottomPx by remember { mutableFloatStateOf(0f) }
+    var bottomPanelTopPx by remember { mutableFloatStateOf(Float.NaN) }
+    var rootHeightPx by remember { mutableFloatStateOf(0f) }
+    val localDensity = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val safeDrawing = WindowInsets.safeDrawing
+    val infoCardShowing = !searchOpen && (state.selectedStar != null || selectedBody != null)
+    val navigationInsets = with(localDensity) {
+        val margin = NavigationArrowMargin.toPx()
+        val controlsBottom = safeDrawing.getTop(localDensity) + (ScreenMargin + TopControlsHeight).toPx()
+        NavInsets(
+            left = safeDrawing.getLeft(localDensity, layoutDirection) + margin.toDouble(),
+            top = max(controlsBottom, if (infoCardShowing) infoCardBottomPx else 0f) + margin.toDouble(),
+            right = safeDrawing.getRight(localDensity, layoutDirection) + margin.toDouble(),
+            bottom = (if (bottomPanelTopPx.isNaN()) safeDrawing.getBottom(localDensity).toFloat() else rootHeightPx - bottomPanelTopPx) + margin.toDouble(),
+        )
+    }
 
     var hasCameraPermission by remember { mutableStateOf(viewModel.hasCameraPermission()) }
     // Read just before each request: see CameraPermissionPolicy.
@@ -151,7 +190,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         onPauseOrDispose { viewModel.onPause() }
     }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(Color.Black).onSizeChanged { rootHeightPx = it.height.toFloat() }) {
         // Behind the GL surface, which is translucent and cleared to transparent in camera mode.
         if (state.viewMode == ViewMode.CAMERA) {
             CameraPreviewLayer(
@@ -169,10 +208,13 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
             bodies = state.bodies,
             selectedStar = state.selectedStar,
             selectedBody = selectedBody,
+            navigation = state.navigation,
+            navigationInsets = navigationInsets,
             onTap = { x, y, width, height -> viewModel.onSkyTapped(x, y, width, height, density) },
             modifier = Modifier.fillMaxSize(),
         )
-        state.selectedStar?.let { selected ->
+        // The search panel takes the cards' place while it is open.
+        state.selectedStar?.takeIf { !searchOpen }?.let { selected ->
             StarInfoCard(
                 selected = selected,
                 observer = state.observer,
@@ -184,11 +226,12 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .safeDrawingPadding()
-                    .padding(16.dp)
-                    .padding(top = TopControlsHeight),
+                    .padding(ScreenMargin)
+                    .padding(top = TopControlsHeight)
+                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
             )
         }
-        selectedBody?.let { body ->
+        selectedBody?.takeIf { !searchOpen }?.let { body ->
             BodyInfoCard(
                 position = body,
                 observer = state.observer,
@@ -200,7 +243,27 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .safeDrawingPadding()
-                    .padding(16.dp)
+                    .padding(ScreenMargin)
+                    .padding(top = TopControlsHeight)
+                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+            )
+        }
+        if (searchOpen) {
+            SearchPanel(
+                search = viewModel::search,
+                catalogueReady = state.starCount != null,
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onSelect = { result ->
+                    viewModel.navigateTo(result)
+                    searchOpen = false
+                    searchQuery = ""
+                },
+                onClose = { searchOpen = false },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .safeDrawingPadding()
+                    .padding(ScreenMargin)
                     .padding(top = TopControlsHeight),
             )
         }
@@ -222,15 +285,27 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 .safeDrawingPadding()
                 .padding(16.dp),
         )
-        // Bottom: status messages, with the "faintest stars" slider under them.
+        // Bottom: the guidance banner while searching, then status messages, with the "faintest stars" slider under them.
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .safeDrawingPadding()
-                .padding(16.dp),
+                .padding(ScreenMargin)
+                .onGloballyPositioned { bottomPanelTopPx = it.boundsInRoot().top },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            state.navigation?.let { navigation ->
+                NavigationBanner(
+                    navigation = navigation,
+                    bodies = state.bodies,
+                    observer = state.observer,
+                    julianDate = state.julianDate,
+                    limitingMagnitude = state.limitingMagnitude,
+                    onStop = viewModel::stopNavigation,
+                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                )
+            }
             StatusOverlay(
                 state = state,
                 hasLocationPermission = hasLocationPermission,
@@ -256,14 +331,22 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         }
         // Top left, mirroring the camera switch. The slider itself is hidden until asked for, so it
         // neither covers the sky nor turns a tap near the bottom edge into a slider move.
-        StarLimitToggle(
-            expanded = starLimitOpen,
-            onClick = { starLimitOpen = !starLimitOpen },
+        Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .safeDrawingPadding()
-                .padding(16.dp),
-        )
+                .padding(ScreenMargin),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StarLimitToggle(
+                expanded = starLimitOpen,
+                onClick = { starLimitOpen = !starLimitOpen },
+            )
+            SearchToggle(
+                expanded = searchOpen,
+                onClick = { searchOpen = !searchOpen },
+            )
+        }
     }
 }
 

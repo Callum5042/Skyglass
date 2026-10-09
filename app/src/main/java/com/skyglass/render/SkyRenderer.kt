@@ -5,6 +5,9 @@ import android.opengl.GLSurfaceView
 import com.skyglass.astro.AstroTime
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.BodyVertices
+import com.skyglass.catalog.ArtImage
+import com.skyglass.catalog.ConstellationArtAppearance
+import com.skyglass.catalog.ConstellationArtMesh
 import com.skyglass.catalog.ConstellationSky
 import com.skyglass.catalog.DeepSkyAppearance
 import com.skyglass.catalog.DeepSkyVertices
@@ -23,8 +26,8 @@ import kotlin.math.min
 import kotlin.math.tan
 
 /**
- * Draws the Milky Way band, the horizon and reference grid, the constellation lines, the deep-sky
- * objects, the star field, then the Sun, Moon and planets. Stars, lines and bodies live in VBOs in the equatorial frame of date; each frame only
+ * Draws the Milky Way band, the constellation illustrations, the horizon and reference grid, the
+ * constellation lines, the deep-sky objects, the star field, then the Sun, Moon and planets. Stars, lines and bodies live in VBOs in the equatorial frame of date; each frame only
  * the MVP matrix changes, built by [SkyViewMath]. The horizon guides are fixed to the observer, so
  * they live in true ENU and are drawn with the same view minus the sky's rotation
  * ([SkyViewMath.horizonModelViewProjection]). The star, line and guide buffers are static; the body
@@ -104,6 +107,22 @@ class SkyRenderer(
     private var uploadedMilkyWay: MilkyWayMesh? = null
     private var milkyWayIndexCount = 0
 
+    // Constellation illustrations: one indexed mesh, one single-channel texture per image.
+    private lateinit var artProgram: ShaderProgram
+    private var uArtMvp = -1
+    private var uArtColor = -1
+    private var uArtEdgeFade = -1
+    private var uArtCameraMode = -1
+    private var uArtSampler = -1
+    private var artVbo = 0
+    private var artIbo = 0
+    private var uploadedArtMesh: ConstellationArtMesh? = null
+    private var uploadedArtImages: List<ArtImage>? = null
+    private var artTextures = IntArray(0)
+
+    /** Textures go up a few per frame (see [ART_TEXTURES_PER_FRAME]); images from this index on are not uploaded yet. */
+    private var artTexturesReady = 0
+
     private var viewportWidth = 1
     private var viewportHeight = 1
     private var aspect = 1.0
@@ -145,8 +164,15 @@ class SkyRenderer(
         uMilkyWayGain = milkyWayProgram.uniformLocation("uGain")
         uMilkyWayCameraMode = milkyWayProgram.uniformLocation("uCameraMode")
 
-        val ids = IntArray(7)
-        GLES30.glGenBuffers(7, ids, 0)
+        artProgram = ShaderProgram(ConstellationArtShaders.VERTEX, ConstellationArtShaders.FRAGMENT)
+        uArtMvp = artProgram.uniformLocation("uMvp")
+        uArtColor = artProgram.uniformLocation("uColor")
+        uArtEdgeFade = artProgram.uniformLocation("uEdgeFade")
+        uArtCameraMode = artProgram.uniformLocation("uCameraMode")
+        uArtSampler = artProgram.uniformLocation("uArt")
+
+        val ids = IntArray(9)
+        GLES30.glGenBuffers(9, ids, 0)
         vbo = ids[0]
         lineVbo = ids[1]
         bodyVbo = ids[2]
@@ -154,8 +180,14 @@ class SkyRenderer(
         deepSkyVbo = ids[4]
         milkyWayVbo = ids[5]
         milkyWayIbo = ids[6]
-        // A new context has empty buffers, even if the data was uploaded to a previous one.
+        artVbo = ids[7]
+        artIbo = ids[8]
+        // A new context has empty buffers and no textures, even if the data was uploaded to a previous one.
         guidesUploaded = false
+        uploadedArtMesh = null
+        uploadedArtImages = null
+        artTextures = IntArray(0)
+        artTexturesReady = 0
         uploadedDeepSky = null
         uploadedMilkyWay = null
         uploadedVertices = null
@@ -249,6 +281,11 @@ class SkyRenderer(
         // The Milky Way is the faintest and widest thing on the sky: first, under everything else.
         if (inputs.showMilkyWay) inputs.milkyWayMesh?.let { drawMilkyWay(it, cameraMode, cameraModeUniform) }
 
+        // The constellation illustrations: a backdrop, under every line and point.
+        val artMesh = inputs.constellationArtMesh
+        val artImages = inputs.constellationArtImages
+        if (artMesh != null && artImages != null) drawConstellationArt(artMesh, artImages, cameraMode, cameraModeUniform)
+
         // The horizon and grid next.
         drawGuides(cameraModeUniform, inputs.showHorizon, inputs.showGrid)
 
@@ -322,6 +359,106 @@ class SkyRenderer(
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
         uploadedMilkyWay = mesh
         milkyWayIndexCount = mesh.indices.size
+    }
+
+    /**
+     * The illustrations (at [ConstellationArtAppearance.GAIN], none while switched off) and the selected
+     * constellation's (at [ConstellationArtAppearance.HIGHLIGHT_GAIN], whatever the switch says), with
+     * the blending of the stars. Textures go up a few per frame, so the art fills in over the first
+     * frames rather than holding up one.
+     */
+    private fun drawConstellationArt(mesh: ConstellationArtMesh, images: List<ArtImage>, cameraMode: Boolean, cameraModeUniform: Float) {
+        val showAll = inputs.showConstellationArt
+        val highlight = inputs.highlightedArtImage
+        if (!showAll && highlight < 0) return
+        if (mesh !== uploadedArtMesh) uploadArtMesh(mesh)
+        if (images !== uploadedArtImages) replaceArtTextures(images)
+        uploadArtTextures(images)
+        val count = min(artTexturesReady, mesh.art.size)
+        if (count == 0) return
+
+        artProgram.use()
+        GLES30.glUniformMatrix4fv(uArtMvp, 1, false, mvpFloats, 0)
+        GLES30.glUniform1f(uArtEdgeFade, ConstellationArtAppearance.EDGE_FADE)
+        GLES30.glUniform1f(uArtCameraMode, cameraModeUniform)
+        GLES30.glUniform1i(uArtSampler, 0)
+        GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
+        val stride = ConstellationArtMesh.FLOATS_PER_VERTEX * Float.SIZE_BYTES
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, artVbo)
+        GLES30.glEnableVertexAttribArray(ConstellationArtShaders.ATTRIB_POSITION)
+        GLES30.glVertexAttribPointer(
+            ConstellationArtShaders.ATTRIB_POSITION, 3, GLES30.GL_FLOAT, false, stride,
+            ConstellationArtMesh.POSITION_OFFSET * Float.SIZE_BYTES,
+        )
+        GLES30.glEnableVertexAttribArray(ConstellationArtShaders.ATTRIB_TEXCOORD)
+        GLES30.glVertexAttribPointer(
+            ConstellationArtShaders.ATTRIB_TEXCOORD, 2, GLES30.GL_FLOAT, false, stride,
+            ConstellationArtMesh.TEXCOORD_OFFSET * Float.SIZE_BYTES,
+        )
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, artIbo)
+        val tint = ConstellationArtAppearance.TINT
+        val viewGain = if (cameraMode) ConstellationArtAppearance.CAMERA_GAIN else 1f
+        for (i in 0 until count) {
+            val lit = i == highlight
+            if (!showAll && !lit) continue
+            val gain = viewGain * if (lit) ConstellationArtAppearance.HIGHLIGHT_GAIN else ConstellationArtAppearance.GAIN
+            GLES30.glUniform3f(uArtColor, tint[0] * gain, tint[1] * gain, tint[2] * gain)
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, artTextures[i])
+            GLES30.glDrawElements(
+                GLES30.GL_TRIANGLES, ConstellationArtMesh.INDICES_PER_IMAGE, GLES30.GL_UNSIGNED_SHORT,
+                i * ConstellationArtMesh.INDICES_PER_IMAGE * Short.SIZE_BYTES,
+            )
+        }
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
+        // Later passes use this slot with an array of their own, or none.
+        GLES30.glDisableVertexAttribArray(ConstellationArtShaders.ATTRIB_TEXCOORD)
+    }
+
+    private fun uploadArtMesh(mesh: ConstellationArtMesh) {
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, artVbo)
+        GLES30.glBufferData(GLES30.GL_ARRAY_BUFFER, mesh.vertices.size * Float.SIZE_BYTES, toBuffer(mesh.vertices), GLES30.GL_STATIC_DRAW)
+        val indexBuffer = ByteBuffer.allocateDirect(mesh.indices.size * Short.SIZE_BYTES)
+            .order(ByteOrder.nativeOrder())
+            .asShortBuffer()
+            .put(mesh.indices)
+            .also { it.position(0) }
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, artIbo)
+        GLES30.glBufferData(GLES30.GL_ELEMENT_ARRAY_BUFFER, mesh.indices.size * Short.SIZE_BYTES, indexBuffer, GLES30.GL_STATIC_DRAW)
+        GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, 0)
+        uploadedArtMesh = mesh
+    }
+
+    /** Frees the previous image list's textures (in this context) and names new, still empty ones. */
+    private fun replaceArtTextures(images: List<ArtImage>) {
+        if (artTextures.isNotEmpty()) GLES30.glDeleteTextures(artTextures.size, artTextures, 0)
+        artTextures = IntArray(images.size)
+        if (images.isNotEmpty()) GLES30.glGenTextures(images.size, artTextures, 0)
+        artTexturesReady = 0
+        uploadedArtImages = images
+    }
+
+    /** Uploads the next few images as single-channel, mipmapped textures. */
+    private fun uploadArtTextures(images: List<ArtImage>) {
+        if (artTexturesReady >= images.size) return
+        GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 1)
+        val end = min(images.size, artTexturesReady + ART_TEXTURES_PER_FRAME)
+        for (i in artTexturesReady until end) {
+            val image = images[i]
+            GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, artTextures[i])
+            GLES30.glTexImage2D(
+                GLES30.GL_TEXTURE_2D, 0, GLES30.GL_R8, image.width, image.height, 0,
+                GLES30.GL_RED, GLES30.GL_UNSIGNED_BYTE, ByteBuffer.wrap(image.luminance),
+            )
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MIN_FILTER, GLES30.GL_LINEAR_MIPMAP_LINEAR)
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_MAG_FILTER, GLES30.GL_LINEAR)
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_S, GLES30.GL_CLAMP_TO_EDGE)
+            GLES30.glTexParameteri(GLES30.GL_TEXTURE_2D, GLES30.GL_TEXTURE_WRAP_T, GLES30.GL_CLAMP_TO_EDGE)
+            GLES30.glGenerateMipmap(GLES30.GL_TEXTURE_2D)
+        }
+        GLES30.glBindTexture(GLES30.GL_TEXTURE_2D, 0)
+        GLES30.glPixelStorei(GLES30.GL_UNPACK_ALIGNMENT, 4)
+        artTexturesReady = end
     }
 
     /** Deep-sky symbols, with the blending of the stars; the vertex shader sizes them from the focal length in pixels. */
@@ -544,6 +681,9 @@ class SkyRenderer(
 
         /** Keeps the shader's smoothstep well defined if the Moon would be vanishingly small. */
         const val MIN_MOON_OCCLUDER = 0.05
+
+        /** Illustrations uploaded per frame: 8 of at most 512 x 512 bytes is 2 MB, a few milliseconds. */
+        const val ART_TEXTURES_PER_FRAME = 8
 
         /** Asked of the GPU for a selected constellation's lines; as for the horizon, 1 px is what many devices give. */
         const val HIGHLIGHT_LINE_WIDTH_PX = 2f

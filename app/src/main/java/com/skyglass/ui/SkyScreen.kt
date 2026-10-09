@@ -379,11 +379,13 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     showDeepSky = state.showDeepSky,
                     showMilkyWay = state.showMilkyWay,
                     showConstellations = state.showConstellations,
+                    showConstellationArt = state.showConstellationArt,
                     onShowHorizonChange = viewModel::setShowHorizon,
                     onShowGridChange = viewModel::setShowGrid,
                     onShowDeepSkyChange = viewModel::setShowDeepSky,
                     onShowMilkyWayChange = viewModel::setShowMilkyWay,
                     onShowConstellationsChange = viewModel::setShowConstellations,
+                    onShowConstellationArtChange = viewModel::setShowConstellationArt,
                     modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                 )
             }
@@ -562,8 +564,9 @@ private fun StarLimitToggle(expanded: Boolean, onClick: () -> Unit, modifier: Mo
 
 /**
  * The display switches, two to a row: the horizon line with its compass letters, the altitude/azimuth
- * grid, the deep-sky objects and the Milky Way band, then the constellation lines and names on a row of
- * their own (the label is too long for half the card's width at 360 dp).
+ * grid, the deep-sky objects and the Milky Way band, then the constellation lines and names and the
+ * constellation illustrations on rows of their own (the labels are too long for half the card's width
+ * at 360 dp), with the illustrations' credit, which their licence asks for.
  */
 @Composable
 private fun DisplaySwitches(
@@ -572,11 +575,13 @@ private fun DisplaySwitches(
     showDeepSky: Boolean,
     showMilkyWay: Boolean,
     showConstellations: Boolean,
+    showConstellationArt: Boolean,
     onShowHorizonChange: (Boolean) -> Unit,
     onShowGridChange: (Boolean) -> Unit,
     onShowDeepSkyChange: (Boolean) -> Unit,
     onShowMilkyWayChange: (Boolean) -> Unit,
     onShowConstellationsChange: (Boolean) -> Unit,
+    onShowConstellationArtChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.background(CardBackground, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp)) {
@@ -589,6 +594,13 @@ private fun DisplaySwitches(
             GuideSwitch(stringResource(R.string.guide_milky_way), showMilkyWay, onShowMilkyWayChange, Modifier.weight(1f))
         }
         GuideSwitch(stringResource(R.string.guide_constellations), showConstellations, onShowConstellationsChange, Modifier.fillMaxWidth())
+        GuideSwitch(stringResource(R.string.guide_constellation_art), showConstellationArt, onShowConstellationArtChange, Modifier.fillMaxWidth())
+        Text(
+            text = stringResource(R.string.constellation_art_credit),
+            color = StatusTextColor.copy(alpha = 0.7f),
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 10.dp),
+        )
     }
 }
 

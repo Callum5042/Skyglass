@@ -1,6 +1,7 @@
 package com.skyglass.catalog
 
 import android.content.res.AssetManager
+import android.graphics.BitmapFactory
 
 object StarCatalog {
 
@@ -9,6 +10,8 @@ object StarCatalog {
     const val CONSTELLATION_LORE_ASSET_NAME = "constellation_lore.txt"
     const val STAR_NAMES_ASSET_NAME = "star_names.txt"
     const val DEEP_SKY_ASSET_NAME = "deep_sky.txt"
+    const val CONSTELLATION_ART_ASSET_NAME = "constellation_art.txt"
+    const val CONSTELLATION_ART_DIRECTORY = "constellation_art"
 
     /** Reads the bundled catalogue and keeps naked-eye stars. Blocking; call off the main thread. */
     fun loadNakedEyeStars(assets: AssetManager): List<Star> =
@@ -31,4 +34,27 @@ object StarCatalog {
     /** Blocking; call off the main thread. */
     fun loadDeepSky(assets: AssetManager): List<DeepSkyObject> =
         assets.open(DEEP_SKY_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(DeepSkyParser::parse)
+
+    /** Blocking; call off the main thread. */
+    fun loadConstellationArt(assets: AssetManager): List<ConstellationArt> =
+        assets.open(CONSTELLATION_ART_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ConstellationArtParser::parse)
+
+    /**
+     * Decodes an illustration and keeps one channel (the art is grey; see [ArtImage]). Blocking, a few
+     * milliseconds per image; call off the main thread.
+     */
+    fun loadArtImage(assets: AssetManager, art: ConstellationArt): ArtImage {
+        val bitmap = assets.open("$CONSTELLATION_ART_DIRECTORY/${art.fileName}").use { BitmapFactory.decodeStream(it) }
+            ?: error("cannot decode ${art.fileName}")
+        try {
+            check(bitmap.width == art.width && bitmap.height == art.height) {
+                "${art.fileName} is ${bitmap.width}x${bitmap.height}, expected ${art.width}x${art.height}"
+            }
+            val pixels = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            return ArtImage(bitmap.width, bitmap.height, ByteArray(pixels.size) { (pixels[it] shr 8).toByte() })
+        } finally {
+            bitmap.recycle()
+        }
+    }
 }

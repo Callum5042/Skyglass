@@ -18,6 +18,7 @@ import com.skyglass.astro.SkyBody
 import com.skyglass.astro.SolarSystem
 import com.skyglass.catalog.BodyVertices
 import com.skyglass.catalog.Constellation
+import com.skyglass.catalog.ConstellationArtMesh
 import com.skyglass.catalog.ConstellationDescriber
 import com.skyglass.catalog.ConstellationDescription
 import com.skyglass.catalog.ConstellationGeometry
@@ -157,6 +158,8 @@ data class SkyUiState(
     val selectedConstellation: ConstellationDescription? = null,
     /** The constellation lines and names; on by default. */
     val showConstellations: Boolean = true,
+    /** The constellation illustrations; on by default. The selected constellation's is drawn either way. */
+    val showConstellationArt: Boolean = true,
     /** The deep-sky objects that are named on screen; empty until the catalogue has loaded. */
     val deepSkyLabels: List<DeepSkyLabel> = emptyList(),
     /** The "what's here?" menu after a tap on several things at once; null when it is not open. */
@@ -195,6 +198,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private var constellationSky: ConstellationSky? = null
     private var starPositions: List<Vector3> = emptyList()
     private var constellationLore: Map<String, ConstellationLore> = emptyMap()
+    private var constellationArt: ConstellationArtMesh? = null
     private val constellationDescriptions = HashMap<String, ConstellationDescription>()
 
     private val locationSource = LocationSource(application)
@@ -213,6 +217,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private val savedShowDeepSky = displayPreferences.getBoolean(KEY_SHOW_DEEP_SKY, true)
     private val savedShowMilkyWay = displayPreferences.getBoolean(KEY_SHOW_MILKY_WAY, true)
     private val savedShowConstellations = displayPreferences.getBoolean(KEY_SHOW_CONSTELLATIONS, true)
+    private val savedShowConstellationArt = displayPreferences.getBoolean(KEY_SHOW_CONSTELLATION_ART, true)
 
     private val _uiState = MutableStateFlow(
         SkyUiState(
@@ -223,6 +228,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             showDeepSky = savedShowDeepSky,
             showMilkyWay = savedShowMilkyWay,
             showConstellations = savedShowConstellations,
+            showConstellationArt = savedShowConstellationArt,
         ),
     )
     val uiState: StateFlow<SkyUiState> = _uiState.asStateFlow()
@@ -234,6 +240,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         renderInputs.showDeepSky = savedShowDeepSky
         renderInputs.showMilkyWay = savedShowMilkyWay
         renderInputs.showConstellations = savedShowConstellations
+        renderInputs.showConstellationArt = savedShowConstellationArt
         viewModelScope.launch {
             val sky = withContext(Dispatchers.IO) {
                 val assets = application.assets
@@ -291,6 +298,20 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                     deepSkyLabels = deepSkyLabels,
                 )
             }
+        }
+        // The illustrations separately, so decoding 85 images does not hold up the stars.
+        viewModelScope.launch {
+            val (mesh, images) = withContext(Dispatchers.IO) {
+                val assets = application.assets
+                val art = StarCatalog.loadConstellationArt(assets)
+                val mesh = ConstellationArtMesh.build(art, AstroTime.julianDate(System.currentTimeMillis()))
+                mesh to art.map { StarCatalog.loadArtImage(assets, it) }
+            }
+            constellationArt = mesh
+            renderInputs.constellationArtImages = images
+            renderInputs.constellationArtMesh = mesh
+            // A constellation may have been selected before its picture was ready.
+            publishHighlight(_uiState.value.selectedConstellation)
         }
         viewModelScope.launch {
             orientationSensor.accuracy.collect { accuracy -> _uiState.update { it.copy(compassAccuracy = accuracy) } }
@@ -426,10 +447,11 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         return description
     }
 
-    /** Tells the renderer which lines to light: the selected constellation lines, or none. */
+    /** Tells the renderer which lines and illustration to light: the selected constellation's, or none. */
     private fun publishHighlight(selected: ConstellationDescription?) {
         val ranges = selected?.let { constellationSky?.rangesOf(it.abbreviation) }
         renderInputs.highlightedConstellation = ranges?.takeIf { it.isNotEmpty() }
+        renderInputs.highlightedArtImage = selected?.let { constellationArt?.imageOf(it.abbreviation) } ?: -1
     }
 
     private fun starDirection(vertices: FloatArray, index: Int): Vector3 {
@@ -553,6 +575,16 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         renderInputs.showConstellations = show
         _uiState.update { it.copy(showConstellations = show) }
         displayPreferences.edit().putBoolean(KEY_SHOW_CONSTELLATIONS, show).apply()
+    }
+
+    /**
+     * Shows or hides the constellation illustrations, and keeps the choice across restarts. As with
+     * the lines, a selected constellation's illustration is drawn either way.
+     */
+    fun setShowConstellationArt(show: Boolean) {
+        renderInputs.showConstellationArt = show
+        _uiState.update { it.copy(showConstellationArt = show) }
+        displayPreferences.edit().putBoolean(KEY_SHOW_CONSTELLATION_ART, show).apply()
     }
 
     /** Shows or hides the Milky Way band, and keeps the choice across restarts. */
@@ -716,5 +748,6 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_SHOW_DEEP_SKY = "show_deep_sky"
         const val KEY_SHOW_MILKY_WAY = "show_milky_way"
         const val KEY_SHOW_CONSTELLATIONS = "show_constellations"
+        const val KEY_SHOW_CONSTELLATION_ART = "show_constellation_art"
     }
 }

@@ -1,5 +1,7 @@
 package com.skyglass.render
 
+import com.skyglass.catalog.ArtImage
+import com.skyglass.catalog.ConstellationArtMesh
 import com.skyglass.catalog.MilkyWayMesh
 import com.skyglass.catalog.StarVisibility
 import com.skyglass.math.Matrix4
@@ -54,6 +56,21 @@ class SkyRenderInputs {
      * `[first0, count0, first1, count1, ...]`, redrawn brighter and wider. Null when none is selected.
      */
     @Volatile var highlightedConstellation: IntArray? = null
+
+    /** The constellation illustrations' mesh (`ConstellationArtMesh`); static once loaded. */
+    @Volatile var constellationArtMesh: ConstellationArtMesh? = null
+
+    /**
+     * The illustrations' pixels, in the order of [constellationArtMesh]'s images; static once loaded.
+     * Kept after upload because a new GL context starts with no textures.
+     */
+    @Volatile var constellationArtImages: List<ArtImage>? = null
+
+    /** Draw the constellation illustrations. The selected constellation's is drawn whatever this says: see [highlightedArtImage]. */
+    @Volatile var showConstellationArt: Boolean = true
+
+    /** The selected constellation's image in [constellationArtMesh], drawn stronger; -1 when none is selected. */
+    @Volatile var highlightedArtImage: Int = -1
 
     /**
      * Vertical field of view of the projection. [DEFAULT_FOV_Y_DEG] for the enhanced view; in the

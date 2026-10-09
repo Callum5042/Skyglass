@@ -14,7 +14,7 @@ data class ChartSegment(val x1: Double, val y1: Double, val x2: Double, val y2: 
 
 /**
  * A picture of a constellation: its stick figure and its stars, drawn from the same catalogue
- * positions as the sky, not from artwork (the app bundles no licensed images and has no network).
+ * positions as the sky, not from artwork, so it shows exactly the stick figure that is lit up.
  *
  * The chart is laid out the way the constellation looks in the sky: north up and east to the left, as
  * on a printed star map. Coordinates are in chart units with **y pointing down** (the screen's

@@ -1,0 +1,14 @@
+Constellation illustrations
+
+The PNG images in this folder are the constellation illustrations of Stellarium's "modern" sky
+culture, drawn by Johan Meuris, copied unmodified from the Stellarium repository
+(https://github.com/Stellarium/stellarium, skycultures/modern/illustrations, commit
+daace2add6a1bf886e8ee1934f51e9c69f818d18).
+
+They are licensed under the Free Art License 1.3: https://artlibre.org/licence/lal/en/
+
+The anchor pixels in ../constellation_art.txt (which pixel of each image sits on which star) come
+from the same sky culture's index.json, whose text and data are licensed under CC BY-SA 4.0
+(https://creativecommons.org/licenses/by-sa/4.0/), by Stellarium's team. constellation_art.txt is an
+adaptation of that data (the stars' Hipparcos numbers resolved to J2000 positions) and is offered
+under the same licence.

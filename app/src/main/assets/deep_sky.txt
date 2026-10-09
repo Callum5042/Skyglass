@@ -13,7 +13,7 @@
 #             not known or the object is nearly round (it is then drawn round)
 #  Constellation  full IAU name
 #
-# Sources and licence: see "Deep-sky objects" in CLAUDE.md. Positions, magnitudes and sizes are
+# Sources and licence: see "Deep-sky objects and the Milky Way" in docs/design-notes.md. Positions, magnitudes and sizes are
 # astronomical facts compiled from the standard catalogues (Messier 1781-1782 with the modern NGC
 # identifications; NGC/IC; the Caldwell list), not copied from any database file or its layout.
 # Messier rows were transcribed from published Messier tables; the other rows are hand-tabulated

@@ -12,17 +12,25 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Publishes the latest raw device orientation from the rotation vector sensor. It is read by the
- * GL thread each frame, so it lives in an [AtomicReference] instead of a Flow; smoothing is done
- * by the renderer with [OrientationFilter].
+ * Publishes the latest device orientation. It is read by the GL thread each frame, so it lives in
+ * an [AtomicReference] instead of a Flow; smoothing is done by the renderer with [OrientationFilter].
  *
- * Uses TYPE_ROTATION_VECTOR (which includes the magnetometer) rather than
- * TYPE_GAME_ROTATION_VECTOR, because the sky needs an absolute heading.
+ * The sky needs an absolute heading, so TYPE_ROTATION_VECTOR (which includes the magnetometer) is
+ * required. On its own its heading jumps whenever the magnetometer recalibrates or is disturbed,
+ * which happens exactly when the phone is swung around the sky, so where the phone also has
+ * TYPE_GAME_ROTATION_VECTOR (a gyroscope) the two are combined by [HeadingFusion]: the gyroscope
+ * moves the sky and the magnetometer only steers north, slowly.
+ *
+ * Callbacks arrive on the main thread (no handler is given), which is the only thread that
+ * touches [fusion].
  */
 class OrientationSensor(context: Context) : SensorEventListener {
 
     private val sensorManager = context.getSystemService(SensorManager::class.java)
     private val sensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+    private val gameSensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+
+    private val fusion = HeadingFusion()
 
     private val latest = AtomicReference<Quaternion?>(null)
 
@@ -37,7 +45,12 @@ class OrientationSensor(context: Context) : SensorEventListener {
     fun latestOrientation(): Quaternion? = latest.get()
 
     fun start() {
-        sensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        // The game frame's heading is arbitrary and may restart with each registration.
+        fusion.reset()
+        sensor?.let { rotationVector ->
+            sensorManager.registerListener(this, rotationVector, SensorManager.SENSOR_DELAY_GAME)
+            gameSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        }
     }
 
     fun stop() {
@@ -46,11 +59,18 @@ class OrientationSensor(context: Context) : SensorEventListener {
 
     override fun onSensorChanged(event: SensorEvent) {
         // event.values is reused by the framework, so copy it out immediately.
-        latest.set(Quaternion.fromRotationVector(event.values))
-        _accuracy.value = event.accuracy
+        val q = Quaternion.fromRotationVector(event.values)
+        when (event.sensor.type) {
+            Sensor.TYPE_ROTATION_VECTOR -> {
+                _accuracy.value = event.accuracy
+                if (gameSensor == null) latest.set(q) else fusion.onRotationVector(q, event.timestamp)?.let(latest::set)
+            }
+            Sensor.TYPE_GAME_ROTATION_VECTOR -> fusion.onGameRotation(q, event.timestamp)?.let(latest::set)
+        }
     }
 
     override fun onAccuracyChanged(sensor: Sensor, accuracy: Int) {
-        _accuracy.value = accuracy
+        // Only the magnetometer's calibration is worth telling the user about.
+        if (sensor.type == Sensor.TYPE_ROTATION_VECTOR) _accuracy.value = accuracy
     }
 }

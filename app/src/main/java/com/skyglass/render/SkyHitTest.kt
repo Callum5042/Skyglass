@@ -15,20 +15,30 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 
-/** A star under the finger: its index in the vertex buffer and its distance from the tap. */
-data class StarHit(val index: Int, val distancePx: Double)
+/**
+ * A star near the finger: its index in the vertex buffer and its distance from the tap. [onTarget] when
+ * the tap is on the star as drawn (see [SkyHitTest.ON_TARGET_SLACK_DP]), not merely within a fingertip.
+ */
+data class StarHit(val index: Int, val distancePx: Double, val onTarget: Boolean = false)
 
-/** A Sun, Moon or planet under the finger: its index in the body list and its distance from the tap. */
-data class BodyHit(val index: Int, val distancePx: Double)
+/** A Sun, Moon or planet near the finger: its index in the body list and its distance from the tap; [onTarget] on its drawn disc. */
+data class BodyHit(val index: Int, val distancePx: Double, val onTarget: Boolean = false)
 
-/** A deep-sky object under the finger: its index in the object list and its distance from the tap. */
-data class DeepSkyHit(val index: Int, val distancePx: Double)
+/** A deep-sky object near the finger: its index in the object list and its distance from the tap; [onTarget] inside its drawn ellipse. */
+data class DeepSkyHit(val index: Int, val distancePx: Double, val onTarget: Boolean = false)
 
 /** Maps a screen tap to the star the user most plausibly meant. */
 object SkyHitTest {
 
     /** Smallest tap radius; roughly a fingertip. */
     const val MIN_TAP_RADIUS_DP = 24.0
+
+    /**
+     * How far beyond a star's drawn sprite (a body's drawn disc) a tap still counts as *on* it rather
+     * than merely near it. Much smaller than the fingertip, so that a faint star 1.5 dp across does not
+     * claim a tap on a constellation's name written over it; see [TapResolver].
+     */
+    const val ON_TARGET_SLACK_DP = 4.0
 
     /**
      * Finds the star nearest to ([tapX], [tapY]) among those in [vertices] (the layout of
@@ -48,9 +58,22 @@ object SkyHitTest {
         tapY: Double,
         density: Float,
         limitingMagnitude: Double = StarVisibility.DEFAULT_LIMIT,
-    ): StarHit? {
+    ): StarHit? = starsAt(mvp, vertices, widthPx, heightPx, tapX, tapY, density, limitingMagnitude).firstOrNull()
+
+    /** Every star [nearestStar] would consider, nearest first. On target within its sprite plus [ON_TARGET_SLACK_DP]. */
+    fun starsAt(
+        mvp: Matrix4,
+        vertices: FloatArray,
+        widthPx: Int,
+        heightPx: Int,
+        tapX: Double,
+        tapY: Double,
+        density: Float,
+        limitingMagnitude: Double = StarVisibility.DEFAULT_LIMIT,
+    ): List<StarHit> {
         val minRadiusPx = MIN_TAP_RADIUS_DP * density
-        var best: StarHit? = null
+        val slackPx = ON_TARGET_SLACK_DP * density
+        val hits = ArrayList<StarHit>()
         for (i in 0 until vertices.size / StarVertices.FLOATS_PER_STAR) {
             val base = i * StarVertices.FLOATS_PER_STAR
             if (!StarVisibility.isTappable(vertices[base + StarVertices.VMAG_OFFSET].toDouble(), limitingMagnitude)) continue
@@ -64,9 +87,10 @@ object SkyHitTest {
             val distance = hypot(p.x - tapX, p.y - tapY)
             val spriteRadiusPx = vertices[base + StarVertices.SIZE_OFFSET] * density / 2.0
             if (distance > max(minRadiusPx, spriteRadiusPx)) continue
-            if (best == null || distance < best.distancePx) best = StarHit(i, distance)
+            hits += StarHit(i, distance, onTarget = distance <= spriteRadiusPx + slackPx)
         }
-        return best
+        hits.sortBy { it.distancePx }
+        return hits
     }
 
     /**
@@ -86,17 +110,34 @@ object SkyHitTest {
         tapY: Double,
         density: Float,
         maxSpriteSizePx: Float = Float.MAX_VALUE,
-    ): BodyHit? {
+    ): BodyHit? = bodiesAt(mvp, bodies, widthPx, heightPx, tapX, tapY, density, maxSpriteSizePx).firstOrNull()
+
+    /**
+     * Every body [nearestBody] would consider, nearest first. On target within its drawn disc plus
+     * [ON_TARGET_SLACK_DP], not its whole sprite: the Sun's glow is far bigger than its disc.
+     */
+    fun bodiesAt(
+        mvp: Matrix4,
+        bodies: List<BodyPosition>,
+        widthPx: Int,
+        heightPx: Int,
+        tapX: Double,
+        tapY: Double,
+        density: Float,
+        maxSpriteSizePx: Float = Float.MAX_VALUE,
+    ): List<BodyHit> {
         val minRadiusPx = MIN_TAP_RADIUS_DP * density
-        var best: BodyHit? = null
+        val hits = ArrayList<BodyHit>()
         for ((i, body) in bodies.withIndex()) {
             val p = SkyProjection.project(mvp, body.direction, widthPx, heightPx) ?: continue
             val distance = hypot(p.x - tapX, p.y - tapY)
             val spriteRadiusPx = min(BodyAppearance.spriteSizeDp(body) * density, maxSpriteSizePx) / 2.0
             if (distance > max(minRadiusPx, spriteRadiusPx)) continue
-            if (best == null || distance < best.distancePx) best = BodyHit(i, distance)
+            val onTargetPx = (BodyAppearance.discRadiusDp(body) + ON_TARGET_SLACK_DP) * density
+            hits += BodyHit(i, distance, onTarget = distance <= onTargetPx)
         }
-        return best
+        hits.sortBy { it.distancePx }
+        return hits
     }
 
     /**
@@ -125,10 +166,23 @@ object SkyHitTest {
         tapY: Double,
         density: Float,
         focalPx: Double,
-    ): DeepSkyHit? {
+    ): DeepSkyHit? = deepSkyAt(mvp, objects, directions, widthPx, heightPx, tapX, tapY, density, focalPx).firstOrNull()
+
+    /** Every object [nearestDeepSky] would consider, nearest (as it reckons distance) first. On target inside its drawn ellipse. */
+    fun deepSkyAt(
+        mvp: Matrix4,
+        objects: List<DeepSkyObject>,
+        directions: List<Vector3>,
+        widthPx: Int,
+        heightPx: Int,
+        tapX: Double,
+        tapY: Double,
+        density: Float,
+        focalPx: Double,
+    ): List<DeepSkyHit> {
         val fingertipPx = MIN_TAP_RADIUS_DP * density
         val minDrawnRadiusPx = DeepSkyAppearance.MIN_RADIUS_DP * density.toDouble()
-        var best: DeepSkyHit? = null
+        val hits = ArrayList<DeepSkyHit>()
         for (i in objects.indices) {
             val d = directions[i]
             val centre = SkyProjection.project(mvp, d, widthPx, heightPx) ?: continue
@@ -143,9 +197,10 @@ object SkyHitTest {
             val insideEllipse = ellipseRadius <= 1.0
             if (!insideEllipse && distance > fingertipPx) continue
             val effective = if (insideEllipse) min(distance, ellipseRadius * fingertipPx) else distance
-            if (best == null || effective < best.distancePx) best = DeepSkyHit(i, effective)
+            hits += DeepSkyHit(i, effective, onTarget = insideEllipse)
         }
-        return best
+        hits.sortBy { it.distancePx }
+        return hits
     }
 
     /**

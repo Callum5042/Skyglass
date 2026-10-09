@@ -44,6 +44,9 @@ import com.skyglass.render.ConstellationHitTest
 import com.skyglass.render.Observer
 import com.skyglass.render.SkyHitTest
 import com.skyglass.render.SkyRenderInputs
+import com.skyglass.render.TapOutcome
+import com.skyglass.render.TapPick
+import com.skyglass.render.TapResolver
 import com.skyglass.sensors.LocationSource
 import com.skyglass.sensors.MagneticDeclination
 import com.skyglass.sensors.OrientationSensor
@@ -88,6 +91,22 @@ data class SelectedDeepSky(val obj: DeepSkyObject, val direction: Vector3)
 
 /** A deep-sky object that gets a name beside it (see [DeepSkyLabels]), with where to put it. */
 data class DeepSkyLabel(val text: String, val obj: DeepSkyObject, val direction: Vector3)
+
+/**
+ * The menu offered when a tap lands on several things at once (see [TapResolver]): where the finger
+ * was, in pixels of the sky view, and what is there, as search titles them.
+ */
+data class TapChoices(val x: Float, val y: Float, val results: List<SearchResult>)
+
+/** What one tap or search result selects; everything else is deselected. */
+private data class Selection(
+    val star: SelectedStar? = null,
+    val body: SkyBody? = null,
+    val deepSky: SelectedDeepSky? = null,
+    val constellation: ConstellationDescription? = null,
+    /** Where a star, deep-sky object or constellation is, for guidance; null for a body, which moves. */
+    val fixedDirection: Vector3? = null,
+)
 
 data class SkyUiState(
     /** Null while the catalogue is loading. */
@@ -140,6 +159,8 @@ data class SkyUiState(
     val showConstellations: Boolean = true,
     /** The deep-sky objects that are named on screen; empty until the catalogue has loaded. */
     val deepSkyLabels: List<DeepSkyLabel> = emptyList(),
+    /** The "what's here?" menu after a tap on several things at once; null when it is not open. */
+    val tapChoices: TapChoices? = null,
 )
 
 private class LoadedSky(
@@ -277,66 +298,118 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Selects the Sun, Moon, planet, star or deep-sky object the tap most plausibly means, or clears
-     * the selection when none is within reach (the rules are [SkyHitTest.choose]'s). Coordinates are in pixels of the [widthPx] × [heightPx] sky view.
+     * Selects what the tap means, clears the selection on empty sky, or, when the finger is on several
+     * things at once, opens the "what's here?" menu ([SkyUiState.tapChoices]); the rules are
+     * [TapResolver]'s. While that menu is open a tap anywhere else only closes it. Coordinates are in
+     * pixels of the [widthPx] × [heightPx] sky view.
+     *
+     * @param labelSizesPx the drawn size of each constellation name, as [ConstellationHitTest.labelAt] takes it
      */
-    fun onSkyTapped(x: Float, y: Float, widthPx: Int, heightPx: Int, density: Float) {
+    fun onSkyTapped(x: Float, y: Float, widthPx: Int, heightPx: Int, density: Float, labelSizesPx: FloatArray) {
+        if (_uiState.value.tapChoices != null) {
+            dismissTapChoices()
+            return
+        }
         val mvp = renderInputs.lastMvp
+        if (mvp == null) {
+            applySelection(Selection())
+            return
+        }
+        val tapX = x.toDouble()
+        val tapY = y.toDouble()
+        val bodies = _uiState.value.bodies
         val vertices = renderInputs.starVertices
-        val namer = starNamer
-        var selectedStar: SelectedStar? = null
-        var selectedBody: SkyBody? = null
-        var selectedDeepSky: SelectedDeepSky? = null
-        var selectedConstellation: ConstellationDescription? = null
-        if (mvp != null) {
-            val bodies = _uiState.value.bodies
-            val bodyHit = SkyHitTest.nearestBody(
-                mvp, bodies, widthPx, heightPx, x.toDouble(), y.toDouble(), density, renderInputs.maxPointSizePx,
-            )
-            val starHit = if (vertices != null && namer != null) {
-                SkyHitTest.nearestStar(
-                    mvp, vertices, widthPx, heightPx, x.toDouble(), y.toDouble(), density, renderInputs.limitingMagnitude,
-                )
-            } else {
-                null
-            }
-            val deepSkyHit = if (renderInputs.showDeepSky && deepSky.isNotEmpty()) {
-                val focalPx = (heightPx / 2.0) / tan(Math.toRadians(renderInputs.fovYDeg / 2))
-                SkyHitTest.nearestDeepSky(
-                    mvp, deepSky, deepSkyDirections, widthPx, heightPx, x.toDouble(), y.toDouble(), density, focalPx,
-                )
-            } else {
-                null
-            }
-            when (SkyHitTest.choose(bodyHit, starHit, deepSkyHit)) {
-                SkyHitTest.Target.DEEP_SKY -> {
-                    val hit = checkNotNull(deepSkyHit)
-                    selectedDeepSky = SelectedDeepSky(deepSky[hit.index], deepSkyDirections[hit.index])
-                }
-                SkyHitTest.Target.BODY -> selectedBody = bodies[checkNotNull(bodyHit).index].body
-                SkyHitTest.Target.STAR -> if (vertices != null && namer != null) {
-                    val hit = checkNotNull(starHit)
-                    selectedStar = SelectedStar(namer.describe(stars[hit.index]), starDirection(vertices, hit.index))
-                }
-                SkyHitTest.Target.NONE -> {
-                    // Stars, planets and deep-sky objects win; failing those, the lines or the name of a constellation.
-                    val sky = constellationSky
-                    if (renderInputs.showConstellations && sky != null) {
-                        ConstellationHitTest.nearest(mvp, sky, widthPx, heightPx, x.toDouble(), y.toDouble(), density)?.let { hit ->
-                            selectedConstellation = describeConstellation(hit.abbreviation)
-                        }
+        val bodyHits = SkyHitTest.bodiesAt(mvp, bodies, widthPx, heightPx, tapX, tapY, density, renderInputs.maxPointSizePx)
+        val starHits = if (vertices != null && starNamer != null) {
+            SkyHitTest.starsAt(mvp, vertices, widthPx, heightPx, tapX, tapY, density, renderInputs.limitingMagnitude)
+        } else {
+            emptyList()
+        }
+        val deepSkyHits = if (renderInputs.showDeepSky && deepSky.isNotEmpty()) {
+            val focalPx = (heightPx / 2.0) / tan(Math.toRadians(renderInputs.fovYDeg / 2))
+            SkyHitTest.deepSkyAt(mvp, deepSky, deepSkyDirections, widthPx, heightPx, tapX, tapY, density, focalPx)
+        } else {
+            emptyList()
+        }
+        // Nothing of the constellations is drawn to tap while they are switched off.
+        val sky = constellationSky?.takeIf { renderInputs.showConstellations }
+        val labelHit = sky?.let { ConstellationHitTest.labelAt(mvp, it, labelSizesPx, widthPx, heightPx, tapX, tapY, density) }
+        val lineHit = sky?.let { ConstellationHitTest.nearestLine(mvp, it, widthPx, heightPx, tapX, tapY, density) }
+
+        when (val outcome = TapResolver.resolve(bodyHits, starHits, deepSkyHits, labelHit, lineHit)) {
+            TapOutcome.Nothing -> applySelection(Selection())
+            is TapOutcome.Select -> applySelection(selectionFor(outcome.pick, bodies) ?: Selection())
+            is TapOutcome.Choose -> {
+                val results = outcome.picks.mapNotNull { pick -> targetOf(pick, bodies)?.let { searchIndex?.resultFor(it) } }
+                when (results.size) {
+                    0 -> applySelection(Selection())
+                    1 -> applySelection(selectionFor(results.single().target) ?: Selection())
+                    else -> {
+                        applySelection(Selection())
+                        _uiState.update { it.copy(tapChoices = TapChoices(x, y, results)) }
                     }
                 }
             }
         }
-        publishHighlight(selectedConstellation)
+    }
+
+    /** Selects one of the things offered by the "what's here?" menu, and closes it. */
+    fun chooseTapped(result: SearchResult) {
+        _uiState.update { it.copy(tapChoices = null) }
+        applySelection(selectionFor(result.target) ?: Selection())
+    }
+
+    /** Closes the "what's here?" menu without choosing; nothing is selected. */
+    fun dismissTapChoices() {
+        _uiState.update { it.copy(tapChoices = null) }
+    }
+
+    private fun targetOf(pick: TapPick, bodies: List<BodyPosition>): SearchTarget? = when (pick) {
+        is TapPick.Body -> SearchTarget.BodyTarget(bodies[pick.index].body)
+        is TapPick.Star -> SearchTarget.StarTarget(stars[pick.index].hr)
+        is TapPick.DeepSky -> SearchTarget.DeepSkyTarget(deepSky[pick.index].id)
+        is TapPick.Constellation -> SearchTarget.ConstellationTarget(pick.name)
+    }
+
+    private fun selectionFor(pick: TapPick, bodies: List<BodyPosition>): Selection? = when (pick) {
+        // A figure spread over opposite sides of the sky has no label, so it is found by abbreviation, not by name.
+        is TapPick.Constellation -> describeConstellation(pick.abbreviation)?.let { Selection(constellation = it, fixedDirection = it.direction) }
+        else -> targetOf(pick, bodies)?.let(::selectionFor)
+    }
+
+    /** What selecting [target] means, or null if it cannot be found (the catalogue is still loading). */
+    private fun selectionFor(target: SearchTarget): Selection? = when (target) {
+        is SearchTarget.StarTarget -> {
+            val vertices = renderInputs.starVertices
+            val namer = starNamer
+            val index = starIndexByHr[target.hr]
+            if (vertices == null || namer == null || index == null) {
+                null
+            } else {
+                val direction = starDirection(vertices, index)
+                Selection(star = SelectedStar(namer.describe(stars[index]), direction), fixedDirection = direction)
+            }
+        }
+        is SearchTarget.BodyTarget -> Selection(body = target.body)
+        is SearchTarget.DeepSkyTarget -> deepSkyIndexById[target.id]?.let { index ->
+            Selection(deepSky = SelectedDeepSky(deepSky[index], deepSkyDirections[index]), fixedDirection = deepSkyDirections[index])
+        }
+        is SearchTarget.ConstellationTarget -> _uiState.value.constellationLabels.firstOrNull { it.name == target.name }?.let { label ->
+            describeConstellation(label.abbreviation)?.let { Selection(constellation = it, fixedDirection = label.direction) }
+        }
+    }
+
+    /** Makes [selection] the selection (an empty one clears it), lights a selected constellation and starts its rise and set. */
+    private fun applySelection(selection: Selection, navigation: NavigationTarget? = _uiState.value.navigation) {
+        publishHighlight(selection.constellation)
         _uiState.update {
             it.copy(
-                selectedStar = selectedStar,
-                selectedBody = selectedBody,
-                selectedDeepSky = selectedDeepSky,
-                selectedConstellation = selectedConstellation,
+                selectedStar = selection.star,
+                selectedBody = selection.body,
+                selectedDeepSky = selection.deepSky,
+                selectedConstellation = selection.constellation,
                 riseSet = null,
+                navigation = navigation,
             )
         }
         refreshRiseSet()
@@ -374,45 +447,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
      * once it is in view. It lasts until [stopNavigation], through taps and the camera switch.
      */
     fun navigateTo(result: SearchResult) {
-        var selectedStar: SelectedStar? = null
-        var selectedBody: SkyBody? = null
-        var selectedDeepSky: SelectedDeepSky? = null
-        var selectedConstellation: ConstellationDescription? = null
-        var fixedDirection: Vector3? = null
-        when (val target = result.target) {
-            is SearchTarget.StarTarget -> {
-                val vertices = renderInputs.starVertices
-                val namer = starNamer
-                val index = starIndexByHr[target.hr]
-                if (vertices == null || namer == null || index == null) return
-                val direction = starDirection(vertices, index)
-                fixedDirection = direction
-                selectedStar = SelectedStar(namer.describe(stars[index]), direction)
-            }
-            is SearchTarget.BodyTarget -> selectedBody = target.body
-            is SearchTarget.DeepSkyTarget -> {
-                val index = deepSkyIndexById[target.id] ?: return
-                fixedDirection = deepSkyDirections[index]
-                selectedDeepSky = SelectedDeepSky(deepSky[index], deepSkyDirections[index])
-            }
-            is SearchTarget.ConstellationTarget -> {
-                val label = _uiState.value.constellationLabels.firstOrNull { it.name == target.name } ?: return
-                fixedDirection = label.direction
-                selectedConstellation = describeConstellation(label.abbreviation)
-            }
-        }
-        publishHighlight(selectedConstellation)
-        _uiState.update {
-            it.copy(
-                selectedStar = selectedStar,
-                selectedBody = selectedBody,
-                selectedDeepSky = selectedDeepSky,
-                selectedConstellation = selectedConstellation,
-                riseSet = null,
-                navigation = NavigationTarget(result, fixedDirection),
-            )
-        }
-        refreshRiseSet()
+        val selection = selectionFor(result.target) ?: return
+        _uiState.update { it.copy(tapChoices = null) }
+        applySelection(selection, navigation = NavigationTarget(result, selection.fixedDirection))
     }
 
     /** Ends the guidance. The object stays selected, so its card is not taken away. */
@@ -422,11 +459,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Dismisses the details card (the same as tapping empty sky). */
     fun clearSelection() {
-        publishHighlight(null)
-        _uiState.update {
-            it.copy(selectedStar = null, selectedBody = null, selectedDeepSky = null, selectedConstellation = null, riseSet = null)
-        }
-        refreshRiseSet()
+        applySelection(Selection())
     }
 
     /**

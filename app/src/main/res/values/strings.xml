@@ -151,6 +151,7 @@
     <string name="search_kind_body">Solar system</string>
     <string name="search_kind_constellation">Constellation</string>
     <string name="search_kind_deep_sky">Deep sky</string>
+    <string name="tap_choices_title">What\'s here?</string>
 
     <string name="navigation_title">Finding %1$s</string>
     <string name="navigation_stop">Stop</string>

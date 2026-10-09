@@ -171,8 +171,9 @@ private fun PanelMessage(text: String) {
     )
 }
 
+/** One search result, or one entry of the "what's here?" menu: title, designation or constellation, and kind. */
 @Composable
-private fun ResultRow(result: SearchResult, onClick: () -> Unit) {
+internal fun ResultRow(result: SearchResult, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()

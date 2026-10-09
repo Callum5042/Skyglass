@@ -145,12 +145,17 @@ fun SkyOverlay(
     navigation: NavigationTarget?,
     navigationInsets: NavInsets,
     showHorizon: Boolean,
-    onTap: (x: Float, y: Float, widthPx: Int, heightPx: Int) -> Unit,
+    onTap: (x: Float, y: Float, widthPx: Int, heightPx: Int, labelSizesPx: FloatArray) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textMeasurer = rememberTextMeasurer()
     val labelStyle = MaterialTheme.typography.labelMedium
     val measuredLabels = remember(labels, labelStyle) { labels.map { textMeasurer.measure(it.name, labelStyle) } }
+    // The constellation names' drawn sizes, so a tap is tested against the words as drawn (see ConstellationHitTest.labelAt).
+    val labelSizesPx = remember(measuredLabels) {
+        FloatArray(2 * measuredLabels.size) { i -> measuredLabels[i / 2].size.let { if (i % 2 == 0) it.width else it.height }.toFloat() }
+    }
+    val currentLabelSizesPx by rememberUpdatedState(labelSizesPx)
     val measuredDeepSkyLabels = remember(deepSkyLabels, labelStyle) { deepSkyLabels.map { textMeasurer.measure(it.text, labelStyle) } }
     val bodyLabelStyle = MaterialTheme.typography.labelLarge
     val bodyNames = SkyBody.entries.associateWith { stringResource(it.nameRes()) }
@@ -187,7 +192,7 @@ fun SkyOverlay(
     Canvas(
         modifier = modifier.pointerInput(Unit) {
             detectTapGestures { offset: Offset ->
-                currentOnTap(offset.x, offset.y, size.width, size.height)
+                currentOnTap(offset.x, offset.y, size.width, size.height, currentLabelSizesPx)
             }
         },
     ) {

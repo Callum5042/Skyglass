@@ -38,7 +38,10 @@ class ConstellationHitTestTest {
     }
 
     private fun nearest(sky: ConstellationSky, x: Double, y: Double) =
-        ConstellationHitTest.nearest(mvp, sky, width, height, x, y, density)
+        ConstellationHitTest.nearestLine(mvp, sky, width, height, x, y, density)
+
+    private fun labelAt(sky: ConstellationSky, sizes: FloatArray, x: Double, y: Double) =
+        ConstellationHitTest.labelAt(mvp, sky, sizes, width, height, x, y, density)
 
     /** One horizontal line through the middle of the screen. */
     private val across = sky(Triple("Aaa", Vector3(-0.2, 0.0, -1.0), Vector3(0.2, 0.0, -1.0)))
@@ -97,16 +100,62 @@ class ConstellationHitTestTest {
         assertNull("to the left of the start", nearest(partly, 100.0, 1080.0))
     }
 
+    private val paddingPx = ConstellationHitTest.LABEL_PADDING_DP * density
+
     @Test
-    fun tapOnTheNameOfAConstellationHitsIt() {
+    fun tapOnTheNameOfAConstellationHitsIt_asFarAsTheDrawnTextAndItsPadding() {
         val named = sky(labels = listOf(ConstellationLabel("Figure Aaa", centre, "Aaa")))
-        val halfWidth = ConstellationHitTest.LABEL_HALF_WIDTH_DP * density
-        val halfHeight = ConstellationHitTest.LABEL_HALF_HEIGHT_DP * density
-        val hit = checkNotNull(nearest(named, 540.0 + halfWidth - 2, 1080.0 + halfHeight - 2))
+        // A long name: 300 x 48 px, centred on the middle of the screen.
+        val sizes = floatArrayOf(300f, 48f)
+        val halfWidth = 150 + paddingPx
+        val halfHeight = 24 + paddingPx
+        val hit = checkNotNull(labelAt(named, sizes, 540.0 + halfWidth - 2, 1080.0 + halfHeight - 2))
         assertEquals("Aaa", hit.abbreviation)
-        assertEquals("a tap on the name counts as on the constellation", 0.0, hit.distancePx, 0.0)
-        assertNull(nearest(named, 540.0 + halfWidth + 2, 1080.0))
-        assertNull(nearest(named, 540.0, 1080.0 + halfHeight + 2))
+        assertEquals("Figure Aaa", hit.name)
+        assertNull(labelAt(named, sizes, 540.0 + halfWidth + 2, 1080.0))
+        assertNull(labelAt(named, sizes, 540.0, 1080.0 + halfHeight + 2))
+        assertNull("the names are not lines", nearest(named, 540.0, 1080.0))
+    }
+
+    @Test
+    fun aShortNameHasASmallerBoxThanALongOne() {
+        val named = sky(labels = listOf(ConstellationLabel("Figure Aaa", centre, "Aaa")))
+        val x = 540.0 + 100 + paddingPx - 2
+        assertNotNull(labelAt(named, floatArrayOf(200f, 48f), x, 1080.0))
+        assertNull(labelAt(named, floatArrayOf(60f, 48f), x, 1080.0))
+    }
+
+    @Test
+    fun aNameWithoutAMeasuredSizeUsesTheFallbackBox() {
+        val named = sky(labels = listOf(ConstellationLabel("Figure Aaa", centre, "Aaa")))
+        val halfWidth = (ConstellationHitTest.FALLBACK_LABEL_WIDTH_DP / 2 + ConstellationHitTest.LABEL_PADDING_DP) * density
+        assertNotNull(labelAt(named, FloatArray(0), 540.0 + halfWidth - 2, 1080.0))
+        assertNull(labelAt(named, FloatArray(0), 540.0 + halfWidth + 2, 1080.0))
+    }
+
+    @Test
+    fun ofTwoOverlappingNamesTheOneWhoseMiddleIsNearerWins() {
+        val a = Vector3(0.0, 0.0, -1.0)
+        val b = Vector3(0.0, -0.02, -1.0) // a little lower on the screen
+        val named = sky(labels = listOf(ConstellationLabel("Figure Aaa", a, "Aaa"), ConstellationLabel("Figure Bbb", b, "Bbb")))
+        val sizes = floatArrayOf(300f, 48f, 300f, 48f)
+        val pa = screenOf(a)
+        val pb = screenOf(b)
+        assertTrue("the boxes overlap", pb.y - pa.y < 48 + 2 * paddingPx)
+        assertEquals("Aaa", labelAt(named, sizes, pa.x, pa.y + 2)!!.abbreviation)
+        assertEquals("Bbb", labelAt(named, sizes, pb.x, pb.y - 2)!!.abbreviation)
+    }
+
+    @Test
+    fun aNameWhoseAnchorIsOffScreenOrBehindIsNotHit() {
+        // Not drawn by the overlay, so not tappable, even where its box would reach onto the screen.
+        val offRight = Vector3(0.30, 0.0, -1.0)
+        val p = screenOf(offRight)
+        assertTrue("the anchor is just off the right edge", p.x > width && p.x < width + 100)
+        val named = sky(labels = listOf(ConstellationLabel("Figure Aaa", offRight, "Aaa")))
+        assertNull(labelAt(named, floatArrayOf(400f, 48f), width - 5.0, p.y))
+        val behind = sky(labels = listOf(ConstellationLabel("Figure Aaa", Vector3(0.0, 0.0, 1.0), "Aaa")))
+        assertNull(labelAt(behind, floatArrayOf(400f, 48f), 540.0, 1080.0))
     }
 
     @Test

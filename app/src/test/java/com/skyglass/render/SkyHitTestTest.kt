@@ -128,6 +128,30 @@ class SkyHitTestTest {
         val p = screenOf(right)
         assertEquals(1, SkyHitTest.nearestStar(mvp, v, width, height, p.x, p.y, density, 2.0)?.index)
     }
+
+    @Test
+    fun aStarIsOnTargetOnlyWithinItsSpritePlusTheSlack() {
+        val v = vertices(Star(centre, 3f))
+        val p = screenOf(centre)
+        val onTargetPx = (3f / 2 + SkyHitTest.ON_TARGET_SLACK_DP) * density // 16.5 px
+        assertTrue(checkNotNull(hit(v, p.x + onTargetPx - 1, p.y)).onTarget)
+        val near = checkNotNull(hit(v, p.x + onTargetPx + 1, p.y))
+        assertTrue("still within a fingertip", !near.onTarget)
+        // A big bright star is on target across its whole sprite and the slack beyond.
+        val bright = vertices(Star(centre, 12f))
+        assertTrue(checkNotNull(hit(bright, p.x + (6 + SkyHitTest.ON_TARGET_SLACK_DP) * density - 1, p.y)).onTarget)
+    }
+
+    @Test
+    fun starsAtListsEveryStarWithinReach_nearestFirst() {
+        val a = Vector3(0.004, 0.0, -1.0)
+        val b = Vector3(-0.001, 0.0, -1.0)
+        val v = vertices(Star(a, 3f), Star(b, 3f), Star(right, 3f))
+        val p = screenOf(centre)
+        val hits = SkyHitTest.starsAt(mvp, v, width, height, p.x, p.y, density)
+        assertEquals(listOf(1, 0), hits.map { it.index })
+        assertEquals(hits.first(), hit(v, p.x, p.y))
+    }
 }
 
 class SkyHitTestBodiesTest {
@@ -200,5 +224,17 @@ class SkyHitTestBodiesTest {
         val tap = p.y + 80
         assertNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, tap, density))
         assertNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, tap, density, maxSpriteSizePx = 100f))
+    }
+
+    @Test
+    fun aBodyIsOnTargetOnItsDiscNotAcrossItsWholeGlow() {
+        val sun = body(com.skyglass.astro.SkyBody.SUN, centre, -26.7)
+        val p = screenOf(centre)
+        val discPx = (com.skyglass.catalog.BodyAppearance.discRadiusDp(sun) + SkyHitTest.ON_TARGET_SLACK_DP) * density
+        val glowRadiusPx = com.skyglass.catalog.BodyAppearance.spriteSizeDp(sun) * density / 2
+        assertTrue(discPx < glowRadiusPx - 10)
+        assertTrue(checkNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, p.y + discPx - 1, density)).onTarget)
+        val inGlow = checkNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, p.y + glowRadiusPx - 5, density))
+        assertTrue("hit, but not on target", !inGlow.onTarget)
     }
 }

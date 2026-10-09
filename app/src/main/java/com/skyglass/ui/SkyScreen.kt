@@ -218,9 +218,13 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
             navigation = state.navigation,
             navigationInsets = navigationInsets,
             showHorizon = state.showHorizon,
-            onTap = { x, y, width, height -> viewModel.onSkyTapped(x, y, width, height, density) },
+            onTap = { x, y, width, height, labelSizes -> viewModel.onSkyTapped(x, y, width, height, density, labelSizes) },
             modifier = Modifier.fillMaxSize(),
         )
+        // A popup, so it sits above everything; anchored in this box, which the overlay fills, at the tap.
+        state.tapChoices?.let { choices ->
+            TapChoicesMenu(choices = choices, onChoose = viewModel::chooseTapped, onDismiss = viewModel::dismissTapChoices)
+        }
         // The search panel takes the cards' place while it is open.
         state.selectedStar?.takeIf { !searchOpen }?.let { selected ->
             StarInfoCard(

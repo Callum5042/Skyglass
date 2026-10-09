@@ -38,6 +38,14 @@ class SkySearchTest {
     private fun titles(query: String) = index.search(query).map { it.title }
 
     @Test
+    fun resultFor_givesTheRowSearchWouldShow() {
+        assertEquals(index.search("sirius").first(), index.resultFor(SearchTarget.StarTarget(2491)))
+        assertEquals("Serpens Cauda", index.resultFor(SearchTarget.ConstellationTarget("Serpens Cauda"))?.title)
+        assertEquals(SearchKind.BODY, index.resultFor(SearchTarget.BodyTarget(SkyBody.MOON))?.kind)
+        assertEquals(null, index.resultFor(SearchTarget.StarTarget(1)))
+    }
+
+    @Test
     fun normalize_spellsOutGreekAndDropsAccentsCaseAndPunctuation() {
         assertEquals("alpha1 centauri", SkySearchIndex.normalize("α¹ Centauri"))
         assertEquals("omicron2 cen", SkySearchIndex.normalize("  Ο² CEN "))

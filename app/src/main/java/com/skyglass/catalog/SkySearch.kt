@@ -79,6 +79,11 @@ class SkySearchIndex private constructor(private val entries: List<Entry>) {
 
     val size: Int get() = entries.size
 
+    private val byTarget: Map<SearchTarget, SearchResult> = entries.associate { it.result.target to it.result }
+
+    /** The result row for [target], titled as search titles it; null if it is not indexed (a faint star the sky does not draw). */
+    fun resultFor(target: SearchTarget): SearchResult? = byTarget[target]
+
     /**
      * Up to [limit] results, best first. An empty (or all-punctuation) [query] gives the suggestions:
      * the Sun, Moon and planets, then the brightest stars that have a traditional name.

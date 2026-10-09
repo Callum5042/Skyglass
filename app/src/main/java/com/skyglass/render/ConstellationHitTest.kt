@@ -9,9 +9,9 @@ import kotlin.math.hypot
 data class ConstellationHit(val abbreviation: String, val name: String, val distancePx: Double)
 
 /**
- * Maps a screen tap to the constellation whose drawn figure it is on or beside. This only decides
- * between constellations; whether a constellation beats a star, a planet or a deep-sky object is the
- * caller's business (a constellation is the last resort: see `SkyViewModel.onSkyTapped`).
+ * Maps a screen tap to the constellation whose drawn name it is on ([labelAt]) or whose figure it is
+ * on or beside ([nearestLine]). This only decides between constellations; how they compete with stars,
+ * planets and deep-sky objects is [TapResolver]'s business.
  */
 object ConstellationHitTest {
 
@@ -22,22 +22,63 @@ object ConstellationHitTest {
      */
     const val LINE_REACH_DP = 16.0
 
-    /** Half the size of the box round a constellation's name in which a tap counts as on it. The text's real width is the overlay's. */
-    const val LABEL_HALF_WIDTH_DP = 44.0
-    const val LABEL_HALF_HEIGHT_DP = 14.0
+    /**
+     * How far round a name's text a tap still counts as on it. The name is set in `labelMedium` (about
+     * 16 dp tall), so the box is about 32 dp tall: not the full 48 dp of a button, which would swallow
+     * too much of the sky round every name.
+     */
+    const val LABEL_PADDING_DP = 8.0
+
+    /** The text box assumed for a name whose drawn size is not known. */
+    const val FALLBACK_LABEL_WIDTH_DP = 72.0
+    const val FALLBACK_LABEL_HEIGHT_DP = 16.0
 
     /** Clip-space w below which a point is treated as at the viewer; the segment is cut there. */
     private const val NEAR_W = 1e-4
 
     /**
-     * Finds the constellation of [sky] nearest to ([tapX], [tapY]): the distance to its nearest line
-     * segment as drawn on a [widthPx] by [heightPx] screen, or 0 for a tap inside the box round its
-     * name. A segment that runs behind the viewer is cut where it reaches the viewer's plane, so only
-     * the part that is drawn counts. Null if nothing is within [LINE_REACH_DP].
+     * The constellation whose name, drawn centred on its label's direction as `SkyOverlay` draws it, the
+     * tap ([tapX], [tapY]) is on: inside the text's box grown by [LABEL_PADDING_DP] on every side. A
+     * label whose anchor is off the screen is not drawn, so it is not hit either. If two boxes overlap
+     * under the finger, the name whose middle is nearer wins; the hit's distance is to that middle.
+     *
+     * @param labelSizesPx the drawn width and height of each of [sky]'s labels in pixels, in their
+     *   order: `[w0, h0, w1, h1, ...]`. A label beyond its end is taken to be [FALLBACK_LABEL_WIDTH_DP] wide.
+     * @param density pixels per dp
+     */
+    fun labelAt(
+        mvp: Matrix4,
+        sky: ConstellationSky,
+        labelSizesPx: FloatArray,
+        widthPx: Int,
+        heightPx: Int,
+        tapX: Double,
+        tapY: Double,
+        density: Float,
+    ): ConstellationHit? {
+        val paddingPx = LABEL_PADDING_DP * density
+        var best: ConstellationHit? = null
+        sky.labels.forEachIndexed { i, label ->
+            val p = SkyProjection.project(mvp, label.direction, widthPx, heightPx) ?: return@forEachIndexed
+            if (!SkyProjection.isOnScreen(p, widthPx, heightPx)) return@forEachIndexed
+            val textWidth = if (2 * i + 1 < labelSizesPx.size) labelSizesPx[2 * i].toDouble() else FALLBACK_LABEL_WIDTH_DP * density
+            val textHeight = if (2 * i + 1 < labelSizesPx.size) labelSizesPx[2 * i + 1].toDouble() else FALLBACK_LABEL_HEIGHT_DP * density
+            if (abs(tapX - p.x) > textWidth / 2 + paddingPx || abs(tapY - p.y) > textHeight / 2 + paddingPx) return@forEachIndexed
+            val distance = hypot(tapX - p.x, tapY - p.y)
+            if (best == null || distance < best!!.distancePx) best = ConstellationHit(label.abbreviation, label.name, distance)
+        }
+        return best
+    }
+
+    /**
+     * Finds the constellation of [sky] whose figure, as drawn on a [widthPx] by [heightPx] screen, has
+     * a line segment nearest to ([tapX], [tapY]). A segment that runs behind the viewer is cut where it
+     * reaches the viewer's plane, so only the part that is drawn counts. Null if nothing is within
+     * [LINE_REACH_DP].
      *
      * @param density pixels per dp
      */
-    fun nearest(
+    fun nearestLine(
         mvp: Matrix4,
         sky: ConstellationSky,
         widthPx: Int,
@@ -68,15 +109,6 @@ object ConstellationHitTest {
                 )
                 if (distance != null) offer(span.abbreviation, span.name, distance)
                 vertex += 2
-            }
-        }
-
-        val halfWidth = LABEL_HALF_WIDTH_DP * density
-        val halfHeight = LABEL_HALF_HEIGHT_DP * density
-        for (label in sky.labels) {
-            val p = SkyProjection.project(mvp, label.direction, widthPx, heightPx) ?: continue
-            if (abs(tapX - p.x) <= halfWidth && abs(tapY - p.y) <= halfHeight) {
-                offer(label.abbreviation, label.name, 0.0)
             }
         }
         return best

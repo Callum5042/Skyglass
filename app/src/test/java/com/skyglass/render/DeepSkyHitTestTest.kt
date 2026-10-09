@@ -68,6 +68,18 @@ class DeepSkyHitTestTest {
     }
 
     @Test
+    fun anObjectIsOnTargetInsideItsDrawnEllipse_notJustWithinAFingertip() {
+        val big = listOf(obj("LMC", 600.0))
+        val p = screenOf(centre)
+        val radiusPx = big[0].majorArcmin / 120.0 * Math.PI / 180 * focalPx
+        assertTrue(checkNotNull(hit(big, listOf(centre), p.x + radiusPx * 0.9, p.y)).onTarget)
+        // A small one (drawn 7 dp across its long semi-axis) is hit 20 dp away, but not on target there.
+        val small = listOf(obj("A", 1.0))
+        assertTrue(checkNotNull(hit(small, listOf(centre), p.x + 3, p.y)).onTarget)
+        assertTrue(!checkNotNull(hit(small, listOf(centre), p.x + 20 * 3, p.y)).onTarget)
+    }
+
+    @Test
     fun aBigObjectIsHitAnywhereInsideItsDrawnExtent() {
         // 10 degrees across at this field of view is a radius of about 160 px.
         val objects = listOf(obj("LMC", 600.0))

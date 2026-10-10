@@ -229,6 +229,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         state.selectedStar?.takeIf { !searchOpen }?.let { selected ->
             StarInfoCard(
                 selected = selected,
+                fact = state.objectFacts.forStar(selected.description.hr),
                 observer = state.observer,
                 julianDate = state.julianDate,
                 riseSet = state.riseSet,
@@ -247,6 +248,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
             DeepSkyInfoCard(
                 selected = selected,
                 image = state.objectImages.forDeepSky(selected.obj.id),
+                fact = state.objectFacts.forDeepSky(selected.obj.id),
                 observer = state.observer,
                 julianDate = state.julianDate,
                 riseSet = state.riseSet,
@@ -282,6 +284,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 position = body,
                 image = state.objectImages.forBody(body.body),
                 moons = state.objectImages.moonsOf(body.body),
+                fact = state.objectFacts.forBody(body.body),
                 observer = state.observer,
                 julianDate = state.julianDate,
                 riseSet = state.riseSet,

@@ -67,6 +67,7 @@ import com.skyglass.catalog.ConstellationOrigin
 import com.skyglass.catalog.DeepSkyMeasure
 import com.skyglass.catalog.DeepSkySize
 import com.skyglass.catalog.MoonImage
+import com.skyglass.catalog.ObjectFact
 import com.skyglass.catalog.ObjectImage
 import com.skyglass.catalog.StarDistance
 import com.skyglass.math.Vector3
@@ -82,8 +83,11 @@ import kotlin.math.abs
 private val CardMaxWidth = 360.dp
 private val DetailRowsMaxHeight = 140.dp
 
-/** The constellation card carries a few sentences of story as well as the rows, so its details get more room. */
-private val ConstellationDetailsMaxHeight = 220.dp
+/**
+ * A card that carries a few sentences of text as well as the rows (the constellation's story, an
+ * object's "about" and "did you know?") gets more room for its details.
+ */
+private val StoryDetailsMaxHeight = 220.dp
 
 /** The constellation picture in the card header. */
 private val ChartWidth = 112.dp
@@ -106,14 +110,16 @@ private val PhotoDialogBackground = Color(0xF20B0D12)
 private val MinTouchTarget = 48.dp
 
 /**
- * Details of the tapped star: name, magnitude and where it is now, then (when [expanded]) its
- * constellation, spectral type, colour, distance, coordinates and rise and set times.
+ * Details of the tapped star: name, magnitude and where it is now, then (when [expanded]) a few words
+ * about it if it has any ([fact]), its constellation, spectral type, colour, distance, coordinates
+ * and rise and set times.
  *
  * @param observer where the user is; with [julianDate] it places the star in the sky (null: no position shown)
  */
 @Composable
 fun StarInfoCard(
     selected: SelectedStar,
+    fact: ObjectFact?,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -129,6 +135,7 @@ fun StarInfoCard(
         onToggleExpanded = onToggleExpanded,
         onDismiss = onDismiss,
         modifier = modifier,
+        detailsMaxHeight = detailsMaxHeight(fact),
         header = {
             Text(text = description.title, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
             if (description.designation != null) {
@@ -146,6 +153,7 @@ fun StarInfoCard(
             PositionSummary(placement)
         },
         details = {
+            fact?.let { FactText(it) }
             description.constellation?.let { DetailRow(stringResource(R.string.detail_label_constellation), it) }
             description.spectralType?.let { DetailRow(stringResource(R.string.detail_label_spectral_type), it) }
             description.colorName?.let { colorName ->
@@ -169,13 +177,14 @@ fun StarInfoCard(
 
 /**
  * Details of the tapped deep-sky object: name, other designations, type and magnitude and where it
- * is now, then (when [expanded]) its type, constellation, apparent size, coordinates and rise and
- * set times. A dark nebula has no magnitude, so that is left out.
+ * is now, then (when [expanded]) a few words about it ([fact]), its type, constellation, apparent
+ * size, coordinates and rise and set times. A dark nebula has no magnitude, so that is left out.
  */
 @Composable
 fun DeepSkyInfoCard(
     selected: SelectedDeepSky,
     image: ObjectImage?,
+    fact: ObjectFact?,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -198,6 +207,7 @@ fun DeepSkyInfoCard(
         onToggleExpanded = onToggleExpanded,
         onDismiss = onDismiss,
         modifier = modifier,
+        detailsMaxHeight = detailsMaxHeight(fact),
         header = {
             HeaderWithPhoto(image = image, title = obj.title, onOpenPhoto = { photoOpen = true }) {
                 Text(text = obj.title, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
@@ -213,6 +223,7 @@ fun DeepSkyInfoCard(
             }
         },
         details = {
+            fact?.let { FactText(it) }
             DetailRow(stringResource(R.string.detail_label_type), typeName)
             DetailRow(stringResource(R.string.detail_label_constellation), obj.constellation)
             DetailRow(stringResource(R.string.detail_label_size), deepSkySizeText(DeepSkySize.of(obj)))
@@ -246,7 +257,7 @@ fun ConstellationInfoCard(
         onToggleExpanded = onToggleExpanded,
         onDismiss = onDismiss,
         modifier = modifier,
-        detailsMaxHeight = ConstellationDetailsMaxHeight,
+        detailsMaxHeight = StoryDetailsMaxHeight,
         header = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -350,14 +361,15 @@ private fun chartStarRadius(vmag: Double, inFigure: Boolean): Dp {
 
 /**
  * Details of the tapped Sun, Moon or planet: name, phase name, magnitude and where it is now, then
- * (when [expanded]) its illuminated fraction, elongation, distance, apparent size, coordinates and
- * rise and set times.
+ * (when [expanded]) a few words about it ([fact]), a planet's moons, its illuminated fraction,
+ * elongation, distance, apparent size, coordinates and rise and set times.
  */
 @Composable
 fun BodyInfoCard(
     position: BodyPosition,
     image: ObjectImage?,
     moons: List<MoonImage>,
+    fact: ObjectFact?,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -382,6 +394,7 @@ fun BodyInfoCard(
         onToggleExpanded = onToggleExpanded,
         onDismiss = onDismiss,
         modifier = modifier,
+        detailsMaxHeight = detailsMaxHeight(fact),
         header = {
             HeaderWithPhoto(image = image, title = name, onOpenPhoto = { openPhoto = PHOTO_OF_BODY }) {
                 Text(text = name, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
@@ -401,6 +414,7 @@ fun BodyInfoCard(
             }
         },
         details = {
+            fact?.let { FactText(it) }
             if (moons.isNotEmpty()) MoonGallery(moons, onOpen = { openPhoto = it })
             // Only the Moon and the inner planets show a phase worth reporting; the rest are always near full.
             if (position.body == SkyBody.MOON || position.body == SkyBody.MERCURY || position.body == SkyBody.VENUS) {
@@ -430,6 +444,26 @@ fun BodyInfoCard(
         },
     )
 }
+
+/** What the object is, then a "did you know?", at the top of a card's details, above the rows of numbers. */
+@Composable
+private fun FactText(fact: ObjectFact) {
+    Text(text = fact.about, color = CardTextColor, style = MaterialTheme.typography.bodySmall)
+    Text(
+        text = stringResource(R.string.detail_did_you_know),
+        color = CardSecondaryTextColor,
+        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    Text(
+        text = fact.fact,
+        color = CardTextColor,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(bottom = 4.dp),
+    )
+}
+
+private fun detailsMaxHeight(fact: ObjectFact?): Dp = if (fact != null) StoryDetailsMaxHeight else DetailRowsMaxHeight
 
 /** [BodyInfoCard]'s open photo is the body's own rather than one of its moons'. */
 private const val PHOTO_OF_BODY = -1

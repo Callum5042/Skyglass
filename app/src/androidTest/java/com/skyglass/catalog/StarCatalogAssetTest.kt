@@ -55,4 +55,14 @@ class StarCatalogAssetTest {
         assertTrue("${thumb.width}x${thumb.height}", minOf(thumb.width, thumb.height) in 150 until 300)
         for (moon in images.moonsOf(SkyBody.SATURN)) assertNotNull(moon.name, StarCatalog.loadObjectImage(assets, moon.image, 64))
     }
+
+    @Test
+    fun bundledObjectFacts_load() {
+        val assets = InstrumentationRegistry.getInstrumentation().targetContext.assets
+        val facts = StarCatalog.loadObjectFactIndex(assets)
+
+        assertNotNull(facts.forBody(SkyBody.SATURN))
+        assertNotNull(facts.forDeepSky("M31"))
+        assertNotNull(facts.forStar(2491)) // Sirius
+    }
 }

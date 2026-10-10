@@ -55,6 +55,7 @@
     <string name="detail_label_size">Apparent size</string>
     <string name="detail_label_image">Photo</string>
     <string name="detail_label_moons">Moons</string>
+    <string name="detail_did_you_know">Did you know?</string>
 
     <string name="object_photo_description">Photo of %1$s</string>
     <string name="object_photo_credit">%1$s · %2$s</string>

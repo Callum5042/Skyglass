@@ -15,6 +15,7 @@ object StarCatalog {
     const val CONSTELLATION_ART_DIRECTORY = "constellation_art"
     const val OBJECT_IMAGES_ASSET_NAME = "object_images.txt"
     const val OBJECT_IMAGES_DIRECTORY = "object_images"
+    const val OBJECT_FACTS_ASSET_NAME = "object_facts.txt"
 
     /** Reads the bundled catalogue and keeps naked-eye stars. Blocking; call off the main thread. */
     fun loadNakedEyeStars(assets: AssetManager): List<Star> =
@@ -45,6 +46,10 @@ object StarCatalog {
     /** Blocking; call off the main thread. */
     fun loadObjectImageIndex(assets: AssetManager): ObjectImageIndex =
         assets.open(OBJECT_IMAGES_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ObjectImageParser::parse)
+
+    /** Blocking; call off the main thread. */
+    fun loadObjectFactIndex(assets: AssetManager): ObjectFactIndex =
+        assets.open(OBJECT_FACTS_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ObjectFactParser::parse)
 
     /**
      * Decodes a photo, subsampled by a power of two while it stays at least [minSidePx] on its

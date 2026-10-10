@@ -11,6 +11,7 @@ class BundledSkyData private constructor(
     val constellationLore: List<ConstellationLore>,
     val constellationArt: List<ConstellationArt>,
     val objectImages: ObjectImageIndex,
+    val objectFacts: ObjectFactIndex,
 ) {
     val nakedEye: List<Star> = allStars.filter { it.vmag <= StarAppearance.MAGNITUDE_LIMIT }
 
@@ -25,6 +26,7 @@ class BundledSkyData private constructor(
             constellationLore = File(assets, StarCatalog.CONSTELLATION_LORE_ASSET_NAME).useLines(Charsets.UTF_8) { ConstellationLoreParser.parse(it) },
             constellationArt = File(assets, StarCatalog.CONSTELLATION_ART_ASSET_NAME).useLines(Charsets.UTF_8) { ConstellationArtParser.parse(it) },
             objectImages = File(assets, StarCatalog.OBJECT_IMAGES_ASSET_NAME).useLines(Charsets.UTF_8) { ObjectImageParser.parse(it) },
+            objectFacts = File(assets, StarCatalog.OBJECT_FACTS_ASSET_NAME).useLines(Charsets.UTF_8) { ObjectFactParser.parse(it) },
         )
     }
 }

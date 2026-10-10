@@ -53,6 +53,12 @@
     <string name="detail_label_illuminated">Illuminated</string>
     <string name="detail_label_elongation">From the Sun</string>
     <string name="detail_label_size">Apparent size</string>
+    <string name="detail_label_image">Photo</string>
+    <string name="detail_label_moons">Moons</string>
+
+    <string name="object_photo_description">Photo of %1$s</string>
+    <string name="object_photo_credit">%1$s · %2$s</string>
+    <string name="object_photo_close">Close photo</string>
 
     <string name="detail_color_with_bv">%1$s (B−V %2$+.2f)</string>
     <string name="detail_distance_ly">about %1$,.1f light years</string>

@@ -1,0 +1,225 @@
+# Sources of the photos on the details cards; tools/object_images/gen_images.py reads this file.
+#
+#   key|image URL|source page|credit|licence|crop
+#     key      a deep-sky object's first id in deep_sky.txt (M31, NGC 253), @BODY for the Sun,
+#              Moon or a planet (com.skyglass.astro.SkyBody name), or @PLANET/Name for one of
+#              its moons; moons are listed innermost first, which is the gallery order
+#     credit   as the source page gives it
+#     licence  Public domain (NASA) or CC BY 4.0 (ESA/Hubble, ESA/Webb, ESO, NOIRLab)
+#     crop     optional x0,y0,x1,y1 as fractions of the image, to frame the object
+#   skip|key|reason   a deep-sky object deliberately left without a photo
+#
+# Chosen by hand, preferring a natural-colour view of the whole object (as in a telescope)
+# over a close-up of part of it. Edit this file, then rerun gen_images.py.
+
+# Sun, Moon and planets, then the planets' moons (NASA, public domain)
+
+@SUN|https://images-assets.nasa.gov/image/PIA26681/PIA26681~large.jpg|https://images.nasa.gov/details/PIA26681|NASA/GSFC/Solar Dynamics Observatory|Public domain|
+@MERCURY|https://images-assets.nasa.gov/image/PIA11245/PIA11245~orig.jpg|https://images.nasa.gov/details/PIA11245|NASA/Johns Hopkins University Applied Physics Laboratory/Carnegie Institution of Washington|Public domain|
+@VENUS|https://images-assets.nasa.gov/image/PIA23791/PIA23791~orig.jpg|https://images.nasa.gov/details/PIA23791|NASA/JPL-Caltech|Public domain|0.53,0,1,1
+@MARS|https://images-assets.nasa.gov/image/PIA00407/PIA00407~large.jpg|https://images.nasa.gov/details/PIA00407|NASA/JPL/USGS|Public domain|
+@JUPITER|https://images-assets.nasa.gov/image/PIA02873/PIA02873~orig.jpg|https://images.nasa.gov/details/PIA02873|NASA/JPL/University of Arizona|Public domain|0.06,0,0.78,1
+@SATURN|https://images-assets.nasa.gov/image/PIA11141/PIA11141~large.jpg|https://images.nasa.gov/details/PIA11141|NASA/JPL/Space Science Institute|Public domain|
+@URANUS|https://images-assets.nasa.gov/image/PIA18182/PIA18182~orig.jpg|https://images.nasa.gov/details/PIA18182|NASA/JPL-Caltech|Public domain|
+@NEPTUNE|https://images-assets.nasa.gov/image/PIA01492/PIA01492~large.jpg|https://images.nasa.gov/details/PIA01492|NASA/JPL|Public domain|
+@MOON|https://images-assets.nasa.gov/image/GSFC_20171208_Archive_e000868/GSFC_20171208_Archive_e000868~large.jpg|https://images.nasa.gov/details/GSFC_20171208_Archive_e000868|NASA's Scientific Visualization Studio|Public domain|
+@MARS/Phobos|https://images-assets.nasa.gov/image/PIA10368/PIA10368~large.jpg|https://images.nasa.gov/details/PIA10368|NASA/JPL-Caltech/University of Arizona|Public domain|
+@MARS/Deimos|https://images-assets.nasa.gov/image/PIA11826/PIA11826~orig.jpg|https://images.nasa.gov/details/PIA11826|NASA/JPL-Caltech/University of Arizona|Public domain|0.02,0.05,0.47,0.95
+@JUPITER/Io|https://images-assets.nasa.gov/image/PIA02308/PIA02308~large.jpg|https://images.nasa.gov/details/PIA02308|NASA/JPL/University of Arizona|Public domain|
+@JUPITER/Europa|https://images-assets.nasa.gov/image/PIA00502/PIA00502~orig.jpg|https://images.nasa.gov/details/PIA00502|NASA/JPL/DLR|Public domain|0,0,0.5,1
+@JUPITER/Ganymede|https://images-assets.nasa.gov/image/PIA00716/PIA00716~orig.jpg|https://images.nasa.gov/details/PIA00716|NASA/JPL|Public domain|
+@JUPITER/Callisto|https://images-assets.nasa.gov/image/PIA03456/PIA03456~orig.jpg|https://images.nasa.gov/details/PIA03456|NASA/JPL/DLR|Public domain|
+@SATURN/Mimas|https://images-assets.nasa.gov/image/PIA12570/PIA12570~large.jpg|https://images.nasa.gov/details/PIA12570|NASA/JPL-Caltech/Space Science Institute|Public domain|
+@SATURN/Enceladus|https://images-assets.nasa.gov/image/PIA07800/PIA07800~large.jpg|https://images.nasa.gov/details/PIA07800|NASA/JPL/Space Science Institute|Public domain|
+@SATURN/Tethys|https://images-assets.nasa.gov/image/PIA07738/PIA07738~large.jpg|https://images.nasa.gov/details/PIA07738|NASA/JPL/Space Science Institute|Public domain|
+@SATURN/Dione|https://images-assets.nasa.gov/image/PIA08256/PIA08256~orig.jpg|https://images.nasa.gov/details/PIA08256|NASA/JPL/Space Science Institute|Public domain|
+@SATURN/Rhea|https://images-assets.nasa.gov/image/PIA07763/PIA07763~large.jpg|https://images.nasa.gov/details/PIA07763|NASA/JPL/Space Science Institute|Public domain|
+@SATURN/Titan|https://images-assets.nasa.gov/image/PIA14602/PIA14602~orig.jpg|https://images.nasa.gov/details/PIA14602|NASA/JPL-Caltech/Space Science Institute|Public domain|
+@SATURN/Iapetus|https://images-assets.nasa.gov/image/PIA08384/PIA08384~large.jpg|https://images.nasa.gov/details/PIA08384|NASA/JPL/Space Science Institute|Public domain|
+@URANUS/Miranda|https://images-assets.nasa.gov/image/PIA18185/PIA18185~orig.jpg|https://images.nasa.gov/details/PIA18185|NASA/JPL-Caltech|Public domain|
+@URANUS/Ariel|https://images-assets.nasa.gov/image/PIA01534/PIA01534~orig.jpg|https://images.nasa.gov/details/PIA01534|NASA/JPL|Public domain|
+@URANUS/Umbriel|https://images-assets.nasa.gov/image/PIA00040/PIA00040~orig.jpg|https://images.nasa.gov/details/PIA00040|NASA/JPL|Public domain|
+@URANUS/Titania|https://images-assets.nasa.gov/image/PIA00039/PIA00039~orig.jpg|https://images.nasa.gov/details/PIA00039|NASA/JPL|Public domain|
+@URANUS/Oberon|https://images-assets.nasa.gov/image/PIA00034/PIA00034~orig.jpg|https://images.nasa.gov/details/PIA00034|NASA/JPL|Public domain|
+@NEPTUNE/Triton|https://images-assets.nasa.gov/image/PIA00317/PIA00317~large.jpg|https://images.nasa.gov/details/PIA00317|NASA/JPL/USGS|Public domain|
+
+# Deep-sky objects
+M1|https://cdn.esahubble.org/archives/images/screen/heic0515a.jpg|https://esahubble.org/images/heic0515a/|NASA, ESA and Allison Loll/Jeff Hester (Arizona State University). Acknowledgement: Davide De Martin (ESA/Hubble)|CC BY 4.0|
+M2|https://storage.noirlab.edu/media/archives/images/screen/noao-m2lee.jpg|https://noirlab.edu/public/images/noao-m2lee/|KPNO/NOIRLab/NSF/AURA/Pat and Chris Lee/ Adam Block|CC BY 4.0|
+M3|https://storage.noirlab.edu/media/archives/images/screen/noao-m3-burrell-schmid.jpg|https://noirlab.edu/public/images/noao-m3-burrell-schmid/|N.A.Sharp, Vanessa Harvey/REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M4|https://cdn.eso.org/images/screen/eso1235a.jpg|https://www.eso.org/public/images/eso1235a/|ESO. Acknowledgement: ESO Imaging Survey|CC BY 4.0|
+M5|https://storage.noirlab.edu/media/archives/images/screen/noao-m5king.jpg|https://noirlab.edu/public/images/noao-m5king/|KPNO/NOIRLab/NSF/AURA/Sally and Curt King/Adam Block|CC BY 4.0|
+M6|https://storage.noirlab.edu/media/archives/images/screen/noao-m6johnson.jpg|https://noirlab.edu/public/images/noao-m6johnson/|KPNO/NOIRLab/NSF/AURA/Lawrence Johnson and Kathy Ortega/Adam Block|CC BY 4.0|
+M7|https://cdn.eso.org/images/screen/eso1406a.jpg|https://www.eso.org/public/images/eso1406a/|ESO|CC BY 4.0|
+M8|https://cdn.eso.org/images/screen/eso1403a.jpg|https://www.eso.org/public/images/eso1403a/|ESO/VPHAS+ team|CC BY 4.0|
+M9|https://cdn.esahubble.org/archives/images/screen/heic1205a.jpg|https://esahubble.org/images/heic1205a/|NASA & ESA|CC BY 4.0|
+M10|https://storage.noirlab.edu/media/archives/images/screen/noao-m10.jpg|https://noirlab.edu/public/images/noao-m10/|N.A.Sharp, Vanessa Harvey/REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M11|https://storage.noirlab.edu/media/archives/images/screen/noao-m11.jpg|https://noirlab.edu/public/images/noao-m11/|N.A.Sharp, REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M12|https://storage.noirlab.edu/media/archives/images/screen/noao-m12.jpg|https://noirlab.edu/public/images/noao-m12/|REU Program/NOIRLab/NSF/AURA|CC BY 4.0|
+M13|https://storage.noirlab.edu/media/archives/images/screen/noao-m13kpno4m.jpg|https://noirlab.edu/public/images/noao-m13kpno4m/|T.A. Rector (University of Alaska Anchorage) and H. Schweiker (WIYN and NOIRLab/NSF/AURA)|CC BY 4.0|
+M14|https://storage.noirlab.edu/media/archives/images/screen/noao-m14.jpg|https://noirlab.edu/public/images/noao-m14/|NOIRLab/NSF/AURA|CC BY 4.0|
+M15|https://storage.noirlab.edu/media/archives/images/screen/noao-m15-kpno-0-9-m.jpg|https://noirlab.edu/public/images/noao-m15-kpno-0-9-m/|NOIRLab/NSF/AURA|CC BY 4.0|
+M16|https://cdn.eso.org/images/screen/eso0926a.jpg|https://www.eso.org/public/images/eso0926a/|ESO|CC BY 4.0|
+M17|https://cdn.eso.org/images/screen/eso1119a.jpg|https://www.eso.org/public/images/eso1119a/|ESO/INAF-VST/OmegaCAM. Acknowledgement: OmegaCen/Astro-WISE/Kapteyn Institute|CC BY 4.0|
+M18|https://storage.noirlab.edu/media/archives/images/screen/noao-m18.jpg|https://noirlab.edu/public/images/noao-m18/|Hillary Mathis, REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M19|https://storage.noirlab.edu/media/archives/images/screen/noao-m19.jpg|https://noirlab.edu/public/images/noao-m19/|Doug Williams, REU Program/NOIRLab/NSF/AURA|CC BY 4.0|
+M20|https://storage.noirlab.edu/media/archives/images/screen/noao-m20johnson.jpg|https://noirlab.edu/public/images/noao-m20johnson/|KPNO/NOIRLab/NSF/AURA/ Lawrence Johnson and Kathy Ortega/Adam Block|CC BY 4.0|
+M21|https://storage.noirlab.edu/media/archives/images/screen/noao-m21.jpg|https://noirlab.edu/public/images/noao-m21/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M22|https://storage.noirlab.edu/media/archives/images/screen/noao-m22.jpg|https://noirlab.edu/public/images/noao-m22/|N.A.Sharp, REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M23|https://storage.noirlab.edu/media/archives/images/screen/noao-m23.jpg|https://noirlab.edu/public/images/noao-m23/|N.A.Sharp, REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M24|https://storage.noirlab.edu/media/archives/images/screen/noao-m24.jpg|https://noirlab.edu/public/images/noao-m24/|Vanessa Harvey, REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M25|https://storage.noirlab.edu/media/archives/images/screen/noao-m25.jpg|https://noirlab.edu/public/images/noao-m25/|Hillary Mathis, Vanessa Harvey, REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M26|https://storage.noirlab.edu/media/archives/images/screen/noao-m26.jpg|https://noirlab.edu/public/images/noao-m26/|Hillary Mathis, Vanessa Harvey, REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M27|https://cdn.eso.org/images/screen/eso9846a.jpg|https://www.eso.org/public/images/eso9846a/|ESO/I. Appenzeller, W. Seifert, O. Stahl, M. Zamani|CC BY 4.0|
+M28|https://storage.noirlab.edu/media/archives/images/screen/noao-m28.jpg|https://noirlab.edu/public/images/noao-m28/|NOIRLab/NSF/AURA|CC BY 4.0|
+M29|https://storage.noirlab.edu/media/archives/images/screen/noao-m29.jpg|https://noirlab.edu/public/images/noao-m29/|Hillary Mathis/NOIRLab/NSF/AURA|CC BY 4.0|
+M30|https://storage.noirlab.edu/media/archives/images/screen/noao-m30.jpg|https://noirlab.edu/public/images/noao-m30/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M31|https://storage.noirlab.edu/media/archives/images/screen/noao0001a.jpg|https://noirlab.edu/public/images/noao0001a/|Bill Schoening, Vanessa Harvey/REU program/NOIRLab/NSF/AURA/|CC BY 4.0|
+M32|https://storage.noirlab.edu/media/archives/images/screen/noao-02326.jpg|https://noirlab.edu/public/images/noao-02326/|NOIRLab/NSF/AURA|CC BY 4.0|
+M33|https://cdn.eso.org/images/screen/eso1424c.jpg|https://www.eso.org/public/images/eso1424c/|ESO/Digitized Sky Survey 2. Acknowledgement: Davide De Martin|CC BY 4.0|0.2,0.2,0.8,0.8
+M34|https://storage.noirlab.edu/media/archives/images/screen/noao-m34.jpg|https://noirlab.edu/public/images/noao-m34/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M35|https://storage.noirlab.edu/media/archives/images/screen/noao-m35.jpg|https://noirlab.edu/public/images/noao-m35/|N.A.Sharp/NOIRLab/NSF/AURA|CC BY 4.0|
+M36|https://storage.noirlab.edu/media/archives/images/screen/noao-m36.jpg|https://noirlab.edu/public/images/noao-m36/|NOIRLab/NSF/AURA|CC BY 4.0|
+M37|https://storage.noirlab.edu/media/archives/images/screen/noao-m37.jpg|https://noirlab.edu/public/images/noao-m37/|NOIRLab/NSF/AURA|CC BY 4.0|
+M38|https://storage.noirlab.edu/media/archives/images/screen/noao-m38.jpg|https://noirlab.edu/public/images/noao-m38/|NOIRLab/NSF/AURA|CC BY 4.0|
+M39|https://storage.noirlab.edu/media/archives/images/screen/noao-m39.jpg|https://noirlab.edu/public/images/noao-m39/|WIYN/KPNO/NOIRLab/NSF/AURA/H. Schweiker|CC BY 4.0|
+M40|https://storage.noirlab.edu/media/archives/images/screen/noao-m40.jpg|https://noirlab.edu/public/images/noao-m40/|NOIRLab/NSF/AURA|CC BY 4.0|
+M41|https://storage.noirlab.edu/media/archives/images/screen/noao-m41.jpg|https://noirlab.edu/public/images/noao-m41/|NOIRLab/NSF/AURA|CC BY 4.0|
+M42|https://cdn.esahubble.org/archives/images/screen/heic0601a.jpg|https://esahubble.org/images/heic0601a/|NASA, ESA, M. Robberto ( Space Telescope Science Institute/ESA) and the Hubble Space Telescope Orion Treasury Project Team|CC BY 4.0|
+M43|https://storage.noirlab.edu/media/archives/images/screen/noao-m43.jpg|https://noirlab.edu/public/images/noao-m43/|N.A.Sharp/NOIRLab/NSF/AURA|CC BY 4.0|
+M44|https://storage.noirlab.edu/media/archives/images/screen/noao-m44bash.jpg|https://noirlab.edu/public/images/noao-m44bash/|KPNO/NOIRLab/NSF/AURA/Tom Bash and John Fox/Adam Block|CC BY 4.0|
+M45|https://storage.noirlab.edu/media/archives/images/screen/noao-m45.jpg|https://noirlab.edu/public/images/noao-m45/|NOIRLab/NSF/AURA/T.A. Rector (University of Alaska Anchorage), R. Cool (University of Arizona) and WIYN|CC BY 4.0|
+M46|https://storage.noirlab.edu/media/archives/images/screen/noao-m46.jpg|https://noirlab.edu/public/images/noao-m46/|N.A.Sharp/NOIRLab/NSF/AURA|CC BY 4.0|
+M47|https://cdn.eso.org/images/screen/eso1441a.jpg|https://www.eso.org/public/images/eso1441a/|ESO|CC BY 4.0|
+M48|https://storage.noirlab.edu/media/archives/images/screen/noao-m48.jpg|https://noirlab.edu/public/images/noao-m48/|NOIRLab/NSF/AURA|CC BY 4.0|
+M49|https://storage.noirlab.edu/media/archives/images/screen/noao-m49.jpg|https://noirlab.edu/public/images/noao-m49/|NOIRLab/NSF/AURA|CC BY 4.0|
+M50|https://storage.noirlab.edu/media/archives/images/screen/noao-m50.jpg|https://noirlab.edu/public/images/noao-m50/|NOIRLab/NSF/AURA|CC BY 4.0|
+M51|https://cdn.esahubble.org/archives/images/screen/heic0506a.jpg|https://esahubble.org/images/heic0506a/|NASA, ESA, S. Beckwith (STScI), and The Hubble Heritage Team (STScI/AURA)|CC BY 4.0|
+M52|https://storage.noirlab.edu/media/archives/images/screen/noao-m52.jpg|https://noirlab.edu/public/images/noao-m52/|NOIRLab/NSF/AURA|CC BY 4.0|
+M53|https://storage.noirlab.edu/media/archives/images/screen/noao-m53.jpg|https://noirlab.edu/public/images/noao-m53/|REU Program/NOIRLab/NSF/AURA|CC BY 4.0|
+M54|https://storage.noirlab.edu/media/archives/images/screen/noao-m54.jpg|https://noirlab.edu/public/images/noao-m54/|REU Program/NOIRLab/NSF/AURA|CC BY 4.0|
+M55|https://storage.noirlab.edu/media/archives/images/screen/noao-m55.jpg|https://noirlab.edu/public/images/noao-m55/|Hillary Mathis, REU Program/NOIRLab/NSF/AURA|CC BY 4.0|
+M56|https://cdn.esahubble.org/archives/images/screen/potw1234a.jpg|https://esahubble.org/images/potw1234a/|NASA & ESA. Acknowledgement: Gilles Chapdelaine|CC BY 4.0|
+M57|https://cdn.esahubble.org/archives/images/screen/heic1310a.jpg|https://esahubble.org/images/heic1310a/|NASA, ESA, and C. Robert O’Dell (Vanderbilt University)|CC BY 4.0|
+M58|https://storage.noirlab.edu/media/archives/images/screen/noao-m58.jpg|https://noirlab.edu/public/images/noao-m58/|NOIRLab/NSF/AURA/|CC BY 4.0|
+M59|https://storage.noirlab.edu/media/archives/images/screen/noao-m59.jpg|https://noirlab.edu/public/images/noao-m59/|NOIRLab/NSF/AURA|CC BY 4.0|
+M60|https://storage.noirlab.edu/media/archives/images/screen/noao-m60.jpg|https://noirlab.edu/public/images/noao-m60/|NOIRLab/NSF/AURA|CC BY 4.0|
+M61|https://storage.noirlab.edu/media/archives/images/screen/noao-m61.jpg|https://noirlab.edu/public/images/noao-m61/|Hillary Mathis, N.A.Sharp/NOIRLab/NSF/AURA/|CC BY 4.0|
+M62|https://cdn.esahubble.org/archives/images/screen/potw1915a.jpg|https://esahubble.org/images/potw1915a/|ESA/Hubble & NASA, S. Anderson et al|CC BY 4.0|
+M63|https://storage.noirlab.edu/media/archives/images/screen/noao-m63hugo.jpg|https://noirlab.edu/public/images/noao-m63hugo/|KPNO/NOIRLab/NSF/AURA/Bruce Hugo and Leslie Gaul/Adam Block|CC BY 4.0|
+M64|https://cdn.esahubble.org/archives/images/screen/opo0404a.jpg|https://esahubble.org/images/opo0404a/|NASA/ESA and The Hubble Heritage Team (AURA/STScI)|CC BY 4.0|
+M65|https://storage.noirlab.edu/media/archives/images/screen/noao-m65greiner.jpg|https://noirlab.edu/public/images/noao-m65greiner/|KPNO/NOIRLab/NSF/AURA/Doc. G. and Dick Goddard/Adam Block|CC BY 4.0|
+M66|https://storage.noirlab.edu/media/archives/images/screen/noao-m66hapeman.jpg|https://noirlab.edu/public/images/noao-m66hapeman/|KPNO/NOIRLab/NSF/AURA/Jeff Hapeman/Adam Block|CC BY 4.0|
+M67|https://storage.noirlab.edu/media/archives/images/screen/noao-m67pump.jpg|https://noirlab.edu/public/images/noao-m67pump/|Nigel Sharp, Mark Hanna/NOIRLab/NSF/AURA|CC BY 4.0|
+M68|https://storage.noirlab.edu/media/archives/images/screen/noao-m68.jpg|https://noirlab.edu/public/images/noao-m68/|NOIRLab/NSF/AURA|CC BY 4.0|
+M69|https://storage.noirlab.edu/media/archives/images/screen/noao-m69.jpg|https://noirlab.edu/public/images/noao-m69/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M70|https://storage.noirlab.edu/media/archives/images/screen/noao-m70.jpg|https://noirlab.edu/public/images/noao-m70/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M71|https://storage.noirlab.edu/media/archives/images/screen/noao-m71.jpg|https://noirlab.edu/public/images/noao-m71/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M72|https://storage.noirlab.edu/media/archives/images/screen/noao-m72.jpg|https://noirlab.edu/public/images/noao-m72/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M73|https://storage.noirlab.edu/media/archives/images/screen/noao-m73.jpg|https://noirlab.edu/public/images/noao-m73/|REU program/NOIRLab/NSF/AURA|CC BY 4.0|
+M74|https://storage.noirlab.edu/media/archives/images/screen/gemini0607a.jpg|https://noirlab.edu/public/images/gemini0607a/|International Gemini Observatory/GMOS Commissioning Team|CC BY 4.0|
+M75|https://storage.noirlab.edu/media/archives/images/screen/noao-m75.jpg|https://noirlab.edu/public/images/noao-m75/|NOIRLab/NSF/AURA|CC BY 4.0|
+M76|https://storage.noirlab.edu/media/archives/images/screen/noao-m76-kpno-0-9-meter.jpg|https://noirlab.edu/public/images/noao-m76-kpno-0-9-meter/|N.A.Sharp/NOIRLab/NSF/AURA|CC BY 4.0|
+M77|https://cdn.esahubble.org/archives/images/screen/heic1305a.jpg|https://esahubble.org/images/heic1305a/|NASA, ESA & A. van der Hoeven|CC BY 4.0|
+M78|https://cdn.eso.org/images/screen/eso1105a.jpg|https://www.eso.org/public/images/eso1105a/|ESO/Igor Chekalin|CC BY 4.0|
+M79|https://storage.noirlab.edu/media/archives/images/screen/noao-m79.jpg|https://noirlab.edu/public/images/noao-m79/|NOIRLab/NSF/AURA|CC BY 4.0|
+M80|https://storage.noirlab.edu/media/archives/images/screen/noao-m80.jpg|https://noirlab.edu/public/images/noao-m80/|NOIRLab/NSF/AURA|CC BY 4.0|
+M81|https://cdn.esahubble.org/archives/images/screen/heic0401e.jpg|https://esahubble.org/images/heic0401e/|ESA/INT/DSS2|CC BY 4.0|
+M82|https://cdn.esahubble.org/archives/images/screen/heic0604a.jpg|https://esahubble.org/images/heic0604a/|NASA, ESA and the Hubble Heritage Team (STScI/AURA). Acknowledgment: J. Gallagher (University of Wisconsin), M. Mountain (STScI) and P. Puxley (NSF)|CC BY 4.0|
+M83|https://cdn.esahubble.org/archives/images/screen/opo0929c.jpg|https://esahubble.org/images/opo0929c/|ESO|CC BY 4.0|
+M84|https://storage.noirlab.edu/media/archives/images/screen/noao-m84.jpg|https://noirlab.edu/public/images/noao-m84/|NOIRLab/NSF/AURA|CC BY 4.0|
+M85|https://storage.noirlab.edu/media/archives/images/screen/noao-m85.jpg|https://noirlab.edu/public/images/noao-m85/|NOIRLab/NSF/AURA|CC BY 4.0|
+M86|https://storage.noirlab.edu/media/archives/images/screen/noao-m86i.jpg|https://noirlab.edu/public/images/noao-m86i/|NOIRLab/NSF/AURA|CC BY 4.0|
+M87|https://cdn.eso.org/images/screen/eso1907b.jpg|https://www.eso.org/public/images/eso1907b/|ESO|CC BY 4.0|
+M88|https://storage.noirlab.edu/media/archives/images/screen/noao-m88.jpg|https://noirlab.edu/public/images/noao-m88/|NOIRLab/NSF/AURA|CC BY 4.0|
+M89|https://storage.noirlab.edu/media/archives/images/screen/noao-m89.jpg|https://noirlab.edu/public/images/noao-m89/|NOIRLab/NSF/AURA|CC BY 4.0|
+M90|https://storage.noirlab.edu/media/archives/images/screen/noao-m90koblas.jpg|https://noirlab.edu/public/images/noao-m90koblas/|KPNO/NOIRLab/NSF/AURA/Paul and Daniel Koblas/Adam Block|CC BY 4.0|
+M91|https://storage.noirlab.edu/media/archives/images/screen/noao-m91.jpg|https://noirlab.edu/public/images/noao-m91/|NOIRLab/NSF/AURA|CC BY 4.0|
+M92|https://storage.noirlab.edu/media/archives/images/screen/noao-m92matthews.jpg|https://noirlab.edu/public/images/noao-m92matthews/|KPNO/NOIRLab/NSF/AURA/Doug Matthews/Adam Block|CC BY 4.0|
+M93|https://storage.noirlab.edu/media/archives/images/screen/noao-m93.jpg|https://noirlab.edu/public/images/noao-m93/|NOIRLab/NSF/AURA|CC BY 4.0|
+M94|https://storage.noirlab.edu/media/archives/images/screen/noao-m94.jpg|https://noirlab.edu/public/images/noao-m94/|Hillary Mathis, N.A.Sharp/NOIRLab/NSF/AURA/|CC BY 4.0|
+M95|https://storage.noirlab.edu/media/archives/images/screen/noao-m95mcguiggan.jpg|https://noirlab.edu/public/images/noao-m95mcguiggan/|KPNO/NOIRLab/NSF/AURA/Michael and Michael McGuiggan/Adam Block|CC BY 4.0|
+M96|https://storage.noirlab.edu/media/archives/images/screen/noirlab2620a.jpg|https://noirlab.edu/public/images/noirlab2620a/|DESI Legacy Imaging Surveys/LBNL/DOE & KPNO/CTIO/NOIRLab/NSF/AURA. Image processing: M. Rodriguez (Gemini Observatory/NSF NOIRLab), J. Miller (Gemini Observatory/NSF NOIRLab), T.A. Rector (University of Alaska Anchorage/NSF NOIRLab) & M. Zamani (NSF NOIRLab)|CC BY 4.0|
+M97|https://storage.noirlab.edu/media/archives/images/screen/noao-m97.jpg|https://noirlab.edu/public/images/noao-m97/|NOIRLab/NSF/AURA|CC BY 4.0|
+M98|https://cdn.eso.org/images/screen/potw1636a.jpg|https://www.eso.org/public/images/potw1636a/|ESO. Acknowledgements: Flickr user jbarring|CC BY 4.0|
+M99|https://storage.noirlab.edu/media/archives/images/screen/noao-m99.jpg|https://noirlab.edu/public/images/noao-m99/|NOIRLab/NSF/AURA|CC BY 4.0|
+M100|https://cdn.eso.org/images/screen/eso-m100.jpg|https://www.eso.org/public/images/eso-m100/|ESO/IDA/Danish 1.5 m/R. Gendler, J.-E. Ovaldsen, C. C. Thöne and C. Féron|CC BY 4.0|
+M101|https://cdn.esahubble.org/archives/images/screen/heic0602a.jpg|https://esahubble.org/images/heic0602a/|Image: European Space Agency & NASA. Acknowledgements: Project Investigators for the original Hubble data: K.D. Kuntz (GSFC), F. Bresolin (University of Hawaii), J. Trauger (JPL), J. Mould (NOAO), and Y.-H. Chu (University of Illinois, Urbana). Image processing: Davide De Martin (ESA/Hubble). CFHT image: Canada-France-Hawaii Telescope/J.-C. Cuillandre/Coelum. NOAO image: George Jacoby, Bruce Bohannan, Mark Hanna/NOAO/AURA/NSF|CC BY 4.0|
+M102|https://cdn.esahubble.org/archives/images/screen/opo0624a.jpg|https://esahubble.org/images/opo0624a/|NASA, ESA, and The Hubble Heritage Team (STScI/AURA)|CC BY 4.0|
+M103|https://storage.noirlab.edu/media/archives/images/screen/noao-m103.jpg|https://noirlab.edu/public/images/noao-m103/|Hillary Mathis, N.A.Sharp/NOIRLab/NSF/AURA|CC BY 4.0|
+M104|https://cdn.esahubble.org/archives/images/screen/opo0328a.jpg|https://esahubble.org/images/opo0328a/|NASA/ESA and The Hubble Heritage Team (STScI/AURA)|CC BY 4.0|
+M105|https://storage.noirlab.edu/media/archives/images/screen/noao-m105.jpg|https://noirlab.edu/public/images/noao-m105/|NOIRLab/NSF/AURA|CC BY 4.0|
+M106|https://storage.noirlab.edu/media/archives/images/screen/noirlab2112b.jpg|https://noirlab.edu/public/images/noirlab2112b/|KPNO/NOIRLab/NSF/AURA. Acknowledgment: PI: M.T. Patterson (New Mexico State University). Image processing: T.A. Rector (University of Alaska Anchorage), M. Zamani & D. de Martin|CC BY 4.0|
+M107|https://storage.noirlab.edu/media/archives/images/screen/noao-m107.jpg|https://noirlab.edu/public/images/noao-m107/|NOIRLab/NSF/AURA|CC BY 4.0|
+M108|https://storage.noirlab.edu/media/archives/images/screen/noao-m108.jpg|https://noirlab.edu/public/images/noao-m108/|NOIRLab/NSF/AURA|CC BY 4.0|
+M109|https://storage.noirlab.edu/media/archives/images/screen/noao-m109.jpg|https://noirlab.edu/public/images/noao-m109/|NOIRLab/NSF/AURA|CC BY 4.0|
+M110|https://storage.noirlab.edu/media/archives/images/screen/noao-n205block.jpg|https://noirlab.edu/public/images/noao-n205block/|KPNO/NOIRLab/NSF/AURA/Adam Block|CC BY 4.0|
+LMC|https://storage.noirlab.edu/media/archives/images/screen/noirlab2030a.jpg|https://noirlab.edu/public/images/noirlab2030a/|CTIO/NOIRLab/NSF/AURA/SMASH/D. Nidever (Montana State University). Acknowledgment: Image processing: Travis Rector (University of Alaska Anchorage), Mahdi Zamani & Davide de Martin|CC BY 4.0|
+SMC|https://storage.noirlab.edu/media/archives/images/screen/noirlab2030b.jpg|https://noirlab.edu/public/images/noirlab2030b/|CTIO/NOIRLab/NSF/AURA/SMASH/D. Nidever (Montana State University). Acknowledgment: Image processing: Travis Rector (University of Alaska Anchorage), Mahdi Zamani & Davide de Martin|CC BY 4.0|
+NGC 253|https://cdn.eso.org/images/screen/eso1152a.jpg|https://www.eso.org/public/images/eso1152a/|ESO/INAF-VST. Acknowledgement: A. Grado/L. Limatola/INAF-Capodimonte Observatory|CC BY 4.0|
+NGC 5128|https://cdn.eso.org/images/screen/eso1221a.jpg|https://www.eso.org/public/images/eso1221a/|ESO|CC BY 4.0|
+NGC 55|https://cdn.eso.org/images/screen/eso0914a.jpg|https://www.eso.org/public/images/eso0914a/|ESO|CC BY 4.0|
+NGC 300|https://cdn.eso.org/images/screen/eso1037a.jpg|https://www.eso.org/public/images/eso1037a/|ESO|CC BY 4.0|
+NGC 247|https://cdn.eso.org/images/screen/eso1107a.jpg|https://www.eso.org/public/images/eso1107a/|ESO|CC BY 4.0|
+NGC 4945|https://cdn.eso.org/images/screen/eso0931a.jpg|https://www.eso.org/public/images/eso0931a/|ESO|CC BY 4.0|
+NGC 6744|https://cdn.eso.org/images/screen/eso1118a.jpg|https://www.eso.org/public/images/eso1118a/|ESO|CC BY 4.0|
+NGC 2403|https://storage.noirlab.edu/media/archives/images/screen/iotw2221a.jpg|https://noirlab.edu/public/images/iotw2221a/|KPNO/NOIRLab/NSF/AURA/M. T. Patterson (New Mexico State University). Image processing: T.A. Rector (University of Alaska Anchorage/NSF NOIRLab), M. Zamani & D. de Martin (NSF NOIRLab)|CC BY 4.0|
+IC 342|https://storage.noirlab.edu/media/archives/images/screen/noao0703a.jpg|https://noirlab.edu/public/images/noao0703a/|NOIRLab/NSF/AURA/T.A. Rector (NSF NOIRLab/University of Alaska Anchorage) & H. Schweiker (WIYN/NSF NOIRLab)|CC BY 4.0|
+NGC 6822|https://cdn.eso.org/images/screen/eso0938a.jpg|https://www.eso.org/public/images/eso0938a/|ESO|CC BY 4.0|
+NGC 4565|https://storage.noirlab.edu/media/archives/images/screen/noao-n4565hugo.jpg|https://noirlab.edu/public/images/noao-n4565hugo/|KPNO/NOIRLab/NSF/AURA/Bruce Hugo and Leslie Gaul/Adam Block|CC BY 4.0|
+NGC 891|https://storage.noirlab.edu/media/archives/images/screen/noao-n891cuppw.jpg|https://noirlab.edu/public/images/noao-n891cuppw/|KPNO/NOIRLab/NSF/AURA/Dale Cupp/Flynn Haase|CC BY 4.0|
+NGC 7331|https://storage.noirlab.edu/media/archives/images/screen/noao-n7331mortfield.jpg|https://noirlab.edu/public/images/noao-n7331mortfield/|KPNO/NOIRLab/NSF/AURA/Paul Mortfield and Dietmar Kupke/Flynn Haase|CC BY 4.0|
+NGC 4631|https://storage.noirlab.edu/media/archives/images/screen/noao-n4631vickery.jpg|https://noirlab.edu/public/images/noao-n4631vickery/|KPNO/NOIRLab/NSF/AURA/John Vickery and Jim Matthes/Adam Block|CC BY 4.0|
+NGC 6946|https://storage.noirlab.edu/media/archives/images/screen/noao-ngc6946kpno.jpg|https://noirlab.edu/public/images/noao-ngc6946kpno/|KPNO/NOIRLab/NSF/AURA/T.A. Rector (University of Alaska Anchorage)/H. Schweiker (WIYN)|CC BY 4.0|
+NGC 2903|https://cdn.esahubble.org/archives/images/screen/heic0102b.jpg|https://esahubble.org/images/heic0102b/|ESA & NASA|CC BY 4.0|
+NGC 1097|https://cdn.eso.org/images/screen/eso0438d.jpg|https://www.eso.org/public/images/eso0438d/|ESO|CC BY 4.0|
+NGC 5139|https://cdn.eso.org/images/screen/eso1119b.jpg|https://www.eso.org/public/images/eso1119b/|ESO/INAF-VST/OmegaCAM. Acknowledgement: A. Grado, L. Limatola/INAF-Capodimonte Observatory|CC BY 4.0|
+NGC 104|https://cdn.eso.org/images/screen/eso1302c.jpg|https://www.eso.org/public/images/eso1302c/|ESO/Digitized Sky Survey 2. Acknowledgment: Davide De Martin|CC BY 4.0|0.3,0.25,0.7,0.75
+NGC 6397|https://cdn.esahubble.org/archives/images/screen/opo0742b.jpg|https://esahubble.org/images/opo0742b/|D. Verschatse (Antilhue Observatory, Chile)|CC BY 4.0|
+NGC 6752|https://cdn.eso.org/images/screen/eso1323a.jpg|https://www.eso.org/public/images/eso1323a/|ESO|CC BY 4.0|
+NGC 362|https://cdn.esahubble.org/archives/images/screen/potw1643a.jpg|https://esahubble.org/images/potw1643a/|ESA/Hubble & NASA|CC BY 4.0|
+NGC 3201|https://cdn.eso.org/images/screen/ngc3201.jpg|https://www.eso.org/public/images/ngc3201/|ESO|CC BY 4.0|
+NGC 2808|https://cdn.esahubble.org/archives/images/screen/heic0708a.jpg|https://esahubble.org/images/heic0708a/|European Space Agency, NASA, G. Piotto (University of Padua, Italy) and A. Sarajedini (University of Florida, USA). Acknowledgement: Davide de Martin (ESA/Hubble)|CC BY 4.0|
+NGC 1851|https://storage.noirlab.edu/media/archives/images/screen/gemini-2013-ngc1851-legacy.jpg|https://noirlab.edu/public/images/gemini-2013-ngc1851-legacy/|International Gemini Observatory, Alan McConnachie (Herzberg Institute of Astrophysics) and T.A. Rector (University of Alaska Anchorage)|CC BY 4.0|
+Mel 25|https://cdn.esahubble.org/archives/images/screen/heic1309c.jpg|https://esahubble.org/images/heic1309c/|NASA, ESA, and STScI|CC BY 4.0|
+NGC 869|https://cdn.eso.org/images/screen/b02.jpg|https://www.eso.org/public/images/b02/|ESO/S. Brunier|CC BY 4.0|0.17,0.46,0.5,0.84
+NGC 884|https://cdn.eso.org/images/screen/b02.jpg|https://www.eso.org/public/images/b02/|ESO/S. Brunier|CC BY 4.0|0.17,0.46,0.5,0.84
+NGC 2244|https://storage.noirlab.edu/media/archives/images/screen/noao-rosette.jpg|https://noirlab.edu/public/images/noao-rosette/|KPNO/NOIRLab/NSF/AURA/N. A. Sharp|CC BY 4.0|
+NGC 457|https://storage.noirlab.edu/media/archives/images/screen/noao-n457siark.jpg|https://noirlab.edu/public/images/noao-n457siark/|KPNO/NOIRLab/NSF/AURA/Ken and Emilie Siarkiewicz/Adam Block|CC BY 4.0|
+NGC 6231|https://cdn.eso.org/images/screen/b14.jpg|https://www.eso.org/public/images/b14/|ESO/S. Brunier|CC BY 4.0|
+NGC 3532|https://cdn.eso.org/images/screen/eso1439a.jpg|https://www.eso.org/public/images/eso1439a/|ESO/G. Beccari|CC BY 4.0|
+NGC 4755|https://cdn.eso.org/images/screen/eso0940b.jpg|https://www.eso.org/public/images/eso0940b/|ESO|CC BY 4.0|
+NGC 2362|https://cdn.eso.org/images/screen/potw1911a.jpg|https://www.eso.org/public/images/potw1911a/|ESO|CC BY 4.0|
+NGC 2264|https://storage.noirlab.edu/media/archives/images/screen/noao-04493.jpg|https://noirlab.edu/public/images/noao-04493/|T.A. Rector (NRAO/AUI/NSF and NOIRLab/NSF/AURA) and B.A. Wolpa (NOIRLab/NSF/AURA)|CC BY 4.0|
+NGC 3766|https://cdn.eso.org/images/screen/eso1326a.jpg|https://www.eso.org/public/images/eso1326a/|ESO|CC BY 4.0|
+NGC 6193|https://cdn.eso.org/images/screen/eso1510a.jpg|https://www.eso.org/public/images/eso1510a/|ESO|CC BY 4.0|
+NGC 2477|https://cdn.eso.org/images/screen/perez-ngc_2477.jpg|https://www.eso.org/public/images/perez-ngc_2477/|ESO/J.Pérez|CC BY 4.0|
+NGC 3372|https://cdn.eso.org/images/screen/eso1250a.jpg|https://www.eso.org/public/images/eso1250a/|ESO. Acknowledgement: VPHAS+ Consortium/Cambridge Astronomical Survey Unit|CC BY 4.0|
+NGC 7000|https://cdn.esahubble.org/archives/images/screen/heic0510a.jpg|https://esahubble.org/images/heic0510a/|Davide De Martin (ESA/Hubble), the ESA/ESO/NASA Photoshop FITS Liberator & Digitized Sky Survey 2|CC BY 4.0|
+NGC 6992|https://storage.noirlab.edu/media/archives/images/screen/noao-ngc6992.jpg|https://noirlab.edu/public/images/noao-ngc6992/|T.A. Rector (University of Alaska Anchorage) and WIYN/NOIRLab/NSF/AURA|CC BY 4.0|
+NGC 6960|https://storage.noirlab.edu/media/archives/images/screen/noao-veil-wiyn-0-9-m.jpg|https://noirlab.edu/public/images/noao-veil-wiyn-0-9-m/|T. A. Rector/University of Alaska Anchorage and WIYN/NOIRLab/NSF/AURA|CC BY 4.0|
+NGC 2237|https://storage.noirlab.edu/media/archives/images/screen/noao-rosette.jpg|https://noirlab.edu/public/images/noao-rosette/|KPNO/NOIRLab/NSF/AURA/N. A. Sharp|CC BY 4.0|
+NGC 2070|https://cdn.eso.org/images/screen/eso1023a.jpg|https://www.eso.org/public/images/eso1023a/|TRAPPIST/E. Jehin/ESO|CC BY 4.0|
+NGC 7293|https://cdn.eso.org/images/screen/eso0907a.jpg|https://www.eso.org/public/images/eso0907a/|ESO|CC BY 4.0|
+NGC 6543|https://cdn.esahubble.org/archives/images/screen/heic0414a.jpg|https://esahubble.org/images/heic0414a/|ESA, NASA, HEIC and The Hubble Heritage Team (STScI/AURA)|CC BY 4.0|
+NGC 2392|https://cdn.esahubble.org/archives/images/screen/heic9910a.jpg|https://esahubble.org/images/heic9910a/|NASA, ESA, Andrew Fruchter (STScI), and the ERO team (STScI + ST-ECF)|CC BY 4.0|
+NGC 7009|https://cdn.eso.org/images/screen/eso1731a.jpg|https://www.eso.org/public/images/eso1731a/|ESO/J. Walsh|CC BY 4.0|
+NGC 3242|https://cdn.esahubble.org/archives/images/screen/opo9738c3.jpg|https://esahubble.org/images/opo9738c3/|Bruce Balick and Jason Alexander (University of Washington), Arsen Hajian (U.S. Naval Observatory), Yervant Terzian (Cornell University ), Mario Perinotto (University of Florence), Patrizio Patriarchi (Arcetri Observatory) and NASA/ESA|CC BY 4.0|
+NGC 6826|https://cdn.esahubble.org/archives/images/screen/opo9738d.jpg|https://esahubble.org/images/opo9738d/|Bruce Balick (University of Washington), Jason Alexander (University of Washington), Arsen Hajian (U.S. Naval Observatory), Yervant Terzian (Cornell University), Mario Perinotto (University of Florence, Italy), Patrizio Patriarchi (Arcetri Observatory, Italy) and NASA/ESA|CC BY 4.0|
+C 99|https://cdn.eso.org/images/screen/eso1539a.jpg|https://www.eso.org/public/images/eso1539a/|ESO|CC BY 4.0|
+
+# No photo: large naked-eye clusters and a few others have no openly licensed view of the
+# whole object in the NASA, ESA/Hubble, ESA/Webb, ESO or NOIRLab archives.
+skip|NGC 3115|no openly licensed whole-object photo found
+skip|Mel 20|no openly licensed whole-object photo found
+skip|Mel 111|no openly licensed whole-object photo found
+skip|Cr 399|no openly licensed whole-object photo found
+skip|NGC 752|no openly licensed whole-object photo found
+skip|NGC 2516|no openly licensed whole-object photo found
+skip|IC 2602|no openly licensed whole-object photo found
+skip|IC 2391|no openly licensed whole-object photo found
+skip|NGC 6633|no openly licensed whole-object photo found
+skip|IC 4756|no openly licensed whole-object photo found
+skip|NGC 7243|no openly licensed whole-object photo found
+skip|NGC 6025|no openly licensed whole-object photo found
+skip|NGC 6124|no openly licensed whole-object photo found

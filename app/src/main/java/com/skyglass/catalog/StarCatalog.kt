@@ -1,6 +1,7 @@
 package com.skyglass.catalog
 
 import android.content.res.AssetManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 
 object StarCatalog {
@@ -12,6 +13,8 @@ object StarCatalog {
     const val DEEP_SKY_ASSET_NAME = "deep_sky.txt"
     const val CONSTELLATION_ART_ASSET_NAME = "constellation_art.txt"
     const val CONSTELLATION_ART_DIRECTORY = "constellation_art"
+    const val OBJECT_IMAGES_ASSET_NAME = "object_images.txt"
+    const val OBJECT_IMAGES_DIRECTORY = "object_images"
 
     /** Reads the bundled catalogue and keeps naked-eye stars. Blocking; call off the main thread. */
     fun loadNakedEyeStars(assets: AssetManager): List<Star> =
@@ -38,6 +41,22 @@ object StarCatalog {
     /** Blocking; call off the main thread. */
     fun loadConstellationArt(assets: AssetManager): List<ConstellationArt> =
         assets.open(CONSTELLATION_ART_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ConstellationArtParser::parse)
+
+    /** Blocking; call off the main thread. */
+    fun loadObjectImageIndex(assets: AssetManager): ObjectImageIndex =
+        assets.open(OBJECT_IMAGES_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(ObjectImageParser::parse)
+
+    /**
+     * Decodes a photo, subsampled by a power of two while it stays at least [minSidePx] on its
+     * shorter side (so a thumbnail does not hold the full image). Null if it cannot be decoded.
+     * Blocking; call off the main thread.
+     */
+    fun loadObjectImage(assets: AssetManager, image: ObjectImage, minSidePx: Int): Bitmap? {
+        var sample = 1
+        while (minOf(image.width, image.height) / (sample * 2) >= minSidePx) sample *= 2
+        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+        return assets.open("$OBJECT_IMAGES_DIRECTORY/${image.fileName}").use { BitmapFactory.decodeStream(it, null, options) }
+    }
 
     /**
      * Decodes an illustration and keeps one channel (the art is grey; see [ArtImage]). Blocking, a few

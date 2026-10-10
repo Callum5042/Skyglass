@@ -30,6 +30,7 @@ import com.skyglass.catalog.DeepSkyObject
 import com.skyglass.catalog.DeepSkyVertices
 import com.skyglass.catalog.MilkyWayMesh
 import com.skyglass.catalog.NavigationTarget
+import com.skyglass.catalog.ObjectImageIndex
 import com.skyglass.catalog.SearchResult
 import com.skyglass.catalog.SearchTarget
 import com.skyglass.catalog.SkySearchIndex
@@ -164,6 +165,8 @@ data class SkyUiState(
     val deepSkyLabels: List<DeepSkyLabel> = emptyList(),
     /** The "what's here?" menu after a tap on several things at once; null when it is not open. */
     val tapChoices: TapChoices? = null,
+    /** The photos shown on the details cards; empty until loaded. */
+    val objectImages: ObjectImageIndex = ObjectImageIndex.EMPTY,
 )
 
 private class LoadedSky(
@@ -312,6 +315,10 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             renderInputs.constellationArtMesh = mesh
             // A constellation may have been selected before its picture was ready.
             publishHighlight(_uiState.value.selectedConstellation)
+        }
+        viewModelScope.launch {
+            val images = withContext(Dispatchers.IO) { StarCatalog.loadObjectImageIndex(application.assets) }
+            _uiState.update { it.copy(objectImages = images) }
         }
         viewModelScope.launch {
             orientationSensor.accuracy.collect { accuracy -> _uiState.update { it.copy(compassAccuracy = accuracy) } }

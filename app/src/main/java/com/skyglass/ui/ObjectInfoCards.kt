@@ -1,6 +1,7 @@
 package com.skyglass.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,32 +10,45 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.skyglass.R
 import com.skyglass.astro.AstroTime
 import com.skyglass.astro.BodyPosition
@@ -52,6 +66,8 @@ import com.skyglass.catalog.ConstellationDescription
 import com.skyglass.catalog.ConstellationOrigin
 import com.skyglass.catalog.DeepSkyMeasure
 import com.skyglass.catalog.DeepSkySize
+import com.skyglass.catalog.MoonImage
+import com.skyglass.catalog.ObjectImage
 import com.skyglass.catalog.StarDistance
 import com.skyglass.math.Vector3
 import com.skyglass.render.Observer
@@ -79,6 +95,12 @@ private val ChartLineColor = Color(0xFF6F9BE8)
 private val ChartFigureStarColor = Color(0xFFEAF0FF)
 private val ChartContextStarColor = Color(0xFF6B7488)
 private val LabelWidth = 112.dp
+
+/** The photos: beside a card's header, in a planet's gallery of moons, and the widest full-size view. */
+private val PhotoThumbnailSize = 96.dp
+private val MoonThumbnailSize = 64.dp
+private val PhotoDialogMaxWidth = 600.dp
+private val PhotoDialogBackground = Color(0xF20B0D12)
 
 /** The size of the tap target for the close button and the "more details" row. */
 private val MinTouchTarget = 48.dp
@@ -153,6 +175,7 @@ fun StarInfoCard(
 @Composable
 fun DeepSkyInfoCard(
     selected: SelectedDeepSky,
+    image: ObjectImage?,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -166,22 +189,28 @@ fun DeepSkyInfoCard(
     val typeName = stringResource(obj.type.nameRes())
     // The title is the common name or else the first designation, which the second line must not repeat.
     val designations = (if (obj.name != null) obj.designations else obj.designations.drop(1)).joinToString(" · ")
+    var photoOpen by rememberSaveable(obj.id) { mutableStateOf(false) }
+    if (photoOpen && image != null) {
+        ObjectPhotoDialog(title = obj.title, image = image, onDismiss = { photoOpen = false })
+    }
     ObjectCard(
         expanded = expanded,
         onToggleExpanded = onToggleExpanded,
         onDismiss = onDismiss,
         modifier = modifier,
         header = {
-            Text(text = obj.title, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
-            if (designations.isNotEmpty()) {
-                Text(text = designations, color = CardSecondaryTextColor, style = MaterialTheme.typography.bodyMedium)
+            HeaderWithPhoto(image = image, title = obj.title, onOpenPhoto = { photoOpen = true }) {
+                Text(text = obj.title, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
+                if (designations.isNotEmpty()) {
+                    Text(text = designations, color = CardSecondaryTextColor, style = MaterialTheme.typography.bodyMedium)
+                }
+                Text(
+                    text = obj.vmag?.let { stringResource(R.string.dso_type_and_magnitude, typeName, it) } ?: typeName,
+                    color = CardTextColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                PositionSummary(placement)
             }
-            Text(
-                text = obj.vmag?.let { stringResource(R.string.dso_type_and_magnitude, typeName, it) } ?: typeName,
-                color = CardTextColor,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            PositionSummary(placement)
         },
         details = {
             DetailRow(stringResource(R.string.detail_label_type), typeName)
@@ -189,6 +218,7 @@ fun DeepSkyInfoCard(
             DetailRow(stringResource(R.string.detail_label_size), deepSkySizeText(DeepSkySize.of(obj)))
             CoordinateRows(placement)
             RiseSetRows(riseSet, julianDate)
+            image?.let { ImageCreditRow(it) }
         },
     )
 }
@@ -326,6 +356,8 @@ private fun chartStarRadius(vmag: Double, inFigure: Boolean): Dp {
 @Composable
 fun BodyInfoCard(
     position: BodyPosition,
+    image: ObjectImage?,
+    moons: List<MoonImage>,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -335,32 +367,41 @@ fun BodyInfoCard(
     modifier: Modifier = Modifier,
 ) {
     val placement = placementOf(position.direction, observer, julianDate)
+    val name = stringResource(position.body.nameRes())
+    // The photo open full size: the body's own (PHOTO_OF_BODY) or one of its moons (by index).
+    var openPhoto by rememberSaveable(position.body) { mutableStateOf<Int?>(null) }
+    openPhoto?.let { index ->
+        val moon = moons.getOrNull(index)
+        val photo = if (index == PHOTO_OF_BODY) image else moon?.image
+        if (photo != null) {
+            ObjectPhotoDialog(title = moon?.name ?: name, image = photo, onDismiss = { openPhoto = null })
+        }
+    }
     ObjectCard(
         expanded = expanded,
         onToggleExpanded = onToggleExpanded,
         onDismiss = onDismiss,
         modifier = modifier,
         header = {
-            Text(
-                text = stringResource(position.body.nameRes()),
-                color = CardTextColor,
-                style = MaterialTheme.typography.titleMedium,
-            )
-            position.lunarPhaseDeg?.let { phase ->
+            HeaderWithPhoto(image = image, title = name, onOpenPhoto = { openPhoto = PHOTO_OF_BODY }) {
+                Text(text = name, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
+                position.lunarPhaseDeg?.let { phase ->
+                    Text(
+                        text = stringResource(MoonPhase.of(phase).nameRes()),
+                        color = CardSecondaryTextColor,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
                 Text(
-                    text = stringResource(MoonPhase.of(phase).nameRes()),
-                    color = CardSecondaryTextColor,
+                    text = stringResource(R.string.star_magnitude, position.vmag),
+                    color = CardTextColor,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                PositionSummary(placement)
             }
-            Text(
-                text = stringResource(R.string.star_magnitude, position.vmag),
-                color = CardTextColor,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            PositionSummary(placement)
         },
         details = {
+            if (moons.isNotEmpty()) MoonGallery(moons, onOpen = { openPhoto = it })
             // Only the Moon and the inner planets show a phase worth reporting; the rest are always near full.
             if (position.body == SkyBody.MOON || position.body == SkyBody.MERCURY || position.body == SkyBody.VENUS) {
                 DetailRow(
@@ -385,8 +426,152 @@ fun BodyInfoCard(
             DetailRow(stringResource(R.string.detail_label_size), sizeText(position))
             CoordinateRows(placement)
             RiseSetRows(riseSet, julianDate)
+            image?.let { ImageCreditRow(it) }
         },
     )
+}
+
+/** [BodyInfoCard]'s open photo is the body's own rather than one of its moons'. */
+private const val PHOTO_OF_BODY = -1
+
+/** The header's text with, when there is one, a photo of the object beside it that opens full size when tapped. */
+@Composable
+private fun HeaderWithPhoto(image: ObjectImage?, title: String, onOpenPhoto: () -> Unit, text: @Composable ColumnScope.() -> Unit) {
+    if (image == null) {
+        Column(content = text)
+        return
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f), content = text)
+        ObjectPhotoThumbnail(
+            image = image,
+            description = stringResource(R.string.object_photo_description, title),
+            size = PhotoThumbnailSize,
+            onClick = onOpenPhoto,
+            modifier = Modifier.padding(bottom = 4.dp),
+        )
+    }
+}
+
+/**
+ * A photo fitted into a square of [size] (not cropped, so Saturn keeps its rings), on the chart's
+ * dark background and border, which also keep the card from jumping while it loads.
+ */
+@Composable
+private fun ObjectPhotoThumbnail(image: ObjectImage, description: String, size: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val bitmap = rememberObjectImage(image, minSidePx = with(LocalDensity.current) { size.roundToPx() })
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(RoundedCornerShape(8.dp))
+            .background(ChartBackground)
+            .border(1.dp, ChartBorder, RoundedCornerShape(8.dp))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+    ) {
+        if (bitmap != null) {
+            Image(bitmap = bitmap, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.matchParentSize())
+        }
+    }
+}
+
+/** A planet's moons in a row that scrolls sideways, each with its name; tapping one opens it full size. */
+@Composable
+private fun MoonGallery(moons: List<MoonImage>, onOpen: (Int) -> Unit) {
+    Text(
+        text = stringResource(R.string.detail_label_moons),
+        color = CardSecondaryTextColor,
+        style = MaterialTheme.typography.bodySmall,
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        moons.forEachIndexed { index, moon ->
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(MoonThumbnailSize)) {
+                ObjectPhotoThumbnail(
+                    image = moon.image,
+                    description = stringResource(R.string.object_photo_description, moon.name),
+                    size = MoonThumbnailSize,
+                    onClick = { onOpen(index) },
+                )
+                Text(
+                    text = moon.name,
+                    color = CardTextColor,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageCreditRow(image: ObjectImage) {
+    DetailRow(stringResource(R.string.detail_label_image), stringResource(R.string.object_photo_credit, image.credit, image.licence))
+}
+
+/**
+ * The photo as large as the screen allows, with its title and credit; tapping the photo, the close
+ * button, outside it or Back closes it.
+ */
+@Composable
+private fun ObjectPhotoDialog(title: String, image: ObjectImage, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val bitmap = rememberObjectImage(image, minSidePx = minOf(image.width, image.height))
+        val closeDescription = stringResource(R.string.object_photo_close)
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .widthIn(max = PhotoDialogMaxWidth)
+                .fillMaxWidth()
+                .background(PhotoDialogBackground, RoundedCornerShape(12.dp))
+                .padding(start = 16.dp, end = 4.dp, bottom = 16.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    color = CardTextColor,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Box(
+                    modifier = Modifier
+                        .size(MinTouchTarget)
+                        .clickable(role = Role.Button, onClick = onDismiss)
+                        .semantics { contentDescription = closeDescription },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = "✕", color = CardSecondaryTextColor, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .fillMaxWidth()
+                    .aspectRatio(image.width.toFloat() / image.height)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ChartBackground)
+                    .clickable(onClick = onDismiss),
+            ) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = stringResource(R.string.object_photo_description, title),
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.object_photo_credit, image.credit, image.licence),
+                color = CardSecondaryTextColor,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp, end = 12.dp),
+            )
+        }
+    }
 }
 
 /**

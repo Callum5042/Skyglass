@@ -1,0 +1,18 @@
+Object photos
+
+The WebP images in this folder are the photos shown on Skyglass's details cards. Each one's credit
+and licence is listed beside it in ../object_images.txt and shown under the photo in the app; the
+source page of every image is listed in tools/object_images/sources.src in the Skyglass repository.
+
+- Images credited to NASA (and its missions and centres, e.g. NASA/JPL-Caltech) are in the public
+  domain in the United States: https://www.nasa.gov/nasa-brand-center/images-and-media/
+  NASA does not endorse this app.
+
+- Images from ESA/Hubble (esahubble.org), ESA/Webb (esawebb.org), ESO (eso.org) and NOIRLab
+  (noirlab.edu) are licensed under the Creative Commons Attribution 4.0 International licence,
+  https://creativecommons.org/licenses/by/4.0/ , credited as listed in ../object_images.txt.
+  These organisations do not endorse this app.
+
+Changes: every image has been scaled down (to at most 768 pixels on its longer side) and
+re-encoded as WebP, and some have been cropped to the object; the colours and content are
+otherwise unchanged.

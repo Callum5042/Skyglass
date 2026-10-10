@@ -2,7 +2,9 @@ package com.skyglass.catalog
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.skyglass.astro.SkyBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -37,5 +39,20 @@ class StarCatalogAssetTest {
 
         assertEquals(88, lore.size)
         assertEquals(figures, lore.map { it.abbreviation }.toSet())
+    }
+
+    @Test
+    fun bundledObjectImages_decodeAtTheirStatedSizeAndSubsampled() {
+        val assets = InstrumentationRegistry.getInstrumentation().targetContext.assets
+        val images = StarCatalog.loadObjectImageIndex(assets)
+        val jupiter = images.forBody(SkyBody.JUPITER)!!
+
+        val full = StarCatalog.loadObjectImage(assets, jupiter, minSidePx = minOf(jupiter.width, jupiter.height))
+        assertEquals(jupiter.width, full?.width)
+        assertEquals(jupiter.height, full?.height)
+        // A thumbnail is decoded at a power-of-two fraction, but never below the size asked for.
+        val thumb = StarCatalog.loadObjectImage(assets, jupiter, minSidePx = 150)!!
+        assertTrue("${thumb.width}x${thumb.height}", minOf(thumb.width, thumb.height) in 150 until 300)
+        for (moon in images.moonsOf(SkyBody.SATURN)) assertNotNull(moon.name, StarCatalog.loadObjectImage(assets, moon.image, 64))
     }
 }

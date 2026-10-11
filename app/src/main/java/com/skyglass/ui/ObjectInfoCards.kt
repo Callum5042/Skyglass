@@ -557,6 +557,7 @@ private fun ObjectPhotoDialog(title: String, image: ObjectImage, onDismiss: () -
         val closeDescription = stringResource(R.string.object_photo_close)
         Column(
             modifier = Modifier
+                .nightMode(LocalNightMode.current) // a window of its own, outside the sky screen's layer
                 .padding(16.dp)
                 .widthIn(max = PhotoDialogMaxWidth)
                 .fillMaxWidth()

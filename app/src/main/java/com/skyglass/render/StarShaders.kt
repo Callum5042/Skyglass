@@ -45,6 +45,7 @@ object StarShaders {
         precision mediump float;
 
         uniform float uCameraMode;   // 0 enhanced view, 1 camera view: see OverlayBlend
+        ${NightMode.GLSL_UNIFORM}
 
         in vec3 vColor;
         out vec4 fragColor;
@@ -60,6 +61,7 @@ object StarShaders {
             // composited over the camera image, so alpha must cover the colour (premultiplied).
             float alpha = mix(1.0, min(1.0, max(max(c.r, c.g), c.b)), uCameraMode);
             fragColor = vec4(c, alpha);
+            ${NightMode.GLSL_APPLY}
         }
     """.trimIndent()
 }

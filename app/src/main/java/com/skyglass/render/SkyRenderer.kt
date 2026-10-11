@@ -54,6 +54,7 @@ class SkyRenderer(
     private var uPointScale = -1
     private var uMaxPointSize = -1
     private var uCameraMode = -1
+    private var uNightMode = -1
     private var uLimitMag = -1
 
     private var vbo = 0
@@ -64,6 +65,7 @@ class SkyRenderer(
     private var uLineMvp = -1
     private var uLineColor = -1
     private var uLineCameraMode = -1
+    private var uLineNightMode = -1
     private var lineVbo = 0
     private var uploadedLines: FloatArray? = null
     private var lineVertexCount = 0
@@ -81,6 +83,7 @@ class SkyRenderer(
     private var uBodyMoonLight = -1
     private var uBodyMoonOccluder = -1
     private var uBodyCameraMode = -1
+    private var uBodyNightMode = -1
     private var bodyVbo = 0
     private var uploadedBodies: FloatArray? = null
     private var bodyCount = 0
@@ -93,6 +96,7 @@ class SkyRenderer(
     private var uDeepSkyFocalPx = -1
     private var uDeepSkyMinRadiusPx = -1
     private var uDeepSkyCameraMode = -1
+    private var uDeepSkyNightMode = -1
     private var deepSkyVbo = 0
     private var uploadedDeepSky: FloatArray? = null
     private var deepSkyVertexCount = 0
@@ -102,6 +106,7 @@ class SkyRenderer(
     private var uMilkyWayMvp = -1
     private var uMilkyWayGain = -1
     private var uMilkyWayCameraMode = -1
+    private var uMilkyWayNightMode = -1
     private var milkyWayVbo = 0
     private var milkyWayIbo = 0
     private var uploadedMilkyWay: MilkyWayMesh? = null
@@ -113,6 +118,7 @@ class SkyRenderer(
     private var uArtColor = -1
     private var uArtEdgeFade = -1
     private var uArtCameraMode = -1
+    private var uArtNightMode = -1
     private var uArtSampler = -1
     private var artVbo = 0
     private var artIbo = 0
@@ -129,6 +135,9 @@ class SkyRenderer(
     private var maxPointSize = 64f
     private var lastFrameNanos = 0L
 
+    /** Every fragment shader's `uNightMode` for the frame being drawn (see [NightMode]). */
+    private var nightModeUniform = 0f
+
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
         GLES30.glDisable(GLES30.GL_DEPTH_TEST)
         GLES30.glEnable(GLES30.GL_BLEND)
@@ -138,12 +147,14 @@ class SkyRenderer(
         uPointScale = program.uniformLocation("uPointScale")
         uMaxPointSize = program.uniformLocation("uMaxPointSize")
         uCameraMode = program.uniformLocation("uCameraMode")
+        uNightMode = program.uniformLocation("uNightMode")
         uLimitMag = program.uniformLocation("uLimitMag")
 
         lineProgram = ShaderProgram(LineShaders.VERTEX, LineShaders.FRAGMENT)
         uLineMvp = lineProgram.uniformLocation("uMvp")
         uLineColor = lineProgram.uniformLocation("uColor")
         uLineCameraMode = lineProgram.uniformLocation("uCameraMode")
+        uLineNightMode = lineProgram.uniformLocation("uNightMode")
 
         bodyProgram = ShaderProgram(BodyShaders.VERTEX, BodyShaders.FRAGMENT)
         uBodyMvp = bodyProgram.uniformLocation("uMvp")
@@ -152,23 +163,27 @@ class SkyRenderer(
         uBodyMoonLight = bodyProgram.uniformLocation("uMoonLight")
         uBodyMoonOccluder = bodyProgram.uniformLocation("uMoonOccluder")
         uBodyCameraMode = bodyProgram.uniformLocation("uCameraMode")
+        uBodyNightMode = bodyProgram.uniformLocation("uNightMode")
 
         deepSkyProgram = ShaderProgram(DeepSkyShaders.VERTEX, DeepSkyShaders.FRAGMENT)
         uDeepSkyMvp = deepSkyProgram.uniformLocation("uMvp")
         uDeepSkyFocalPx = deepSkyProgram.uniformLocation("uFocalPx")
         uDeepSkyMinRadiusPx = deepSkyProgram.uniformLocation("uMinRadiusPx")
         uDeepSkyCameraMode = deepSkyProgram.uniformLocation("uCameraMode")
+        uDeepSkyNightMode = deepSkyProgram.uniformLocation("uNightMode")
 
         milkyWayProgram = ShaderProgram(MilkyWayShaders.VERTEX, MilkyWayShaders.FRAGMENT)
         uMilkyWayMvp = milkyWayProgram.uniformLocation("uMvp")
         uMilkyWayGain = milkyWayProgram.uniformLocation("uGain")
         uMilkyWayCameraMode = milkyWayProgram.uniformLocation("uCameraMode")
+        uMilkyWayNightMode = milkyWayProgram.uniformLocation("uNightMode")
 
         artProgram = ShaderProgram(ConstellationArtShaders.VERTEX, ConstellationArtShaders.FRAGMENT)
         uArtMvp = artProgram.uniformLocation("uMvp")
         uArtColor = artProgram.uniformLocation("uColor")
         uArtEdgeFade = artProgram.uniformLocation("uEdgeFade")
         uArtCameraMode = artProgram.uniformLocation("uCameraMode")
+        uArtNightMode = artProgram.uniformLocation("uNightMode")
         uArtSampler = artProgram.uniformLocation("uArt")
 
         val ids = IntArray(9)
@@ -226,10 +241,14 @@ class SkyRenderer(
     override fun onDrawFrame(gl: GL10?) {
         // Opaque black for the enhanced view; fully transparent over a camera image, where what is
         // drawn is premultiplied colour with a real alpha, composited over the image (OverlayBlend).
+        // In night mode the camera image is dimmed by clearing to translucent black (see NightMode).
         val cameraMode = inputs.cameraMode
-        GLES30.glClearColor(0f, 0f, 0f, if (cameraMode) 0f else 1f)
+        val nightMode = inputs.nightMode
+        val clear = OverlayBlend.clearColor(cameraMode, nightMode)
+        GLES30.glClearColor(clear.r.toFloat(), clear.g.toFloat(), clear.b.toFloat(), clear.a.toFloat())
         GLES30.glClear(GLES30.GL_COLOR_BUFFER_BIT)
         val cameraModeUniform = if (cameraMode) 1f else 0f
+        nightModeUniform = if (nightMode) 1f else 0f
         // Each pass enables the vertex arrays it uses; none may inherit another pass's, whose buffer may be smaller.
         for (attribute in 0..MAX_VERTEX_ATTRIBUTE) GLES30.glDisableVertexAttribArray(attribute)
         setBlending(OverlayBlend.stars(cameraMode))
@@ -304,6 +323,7 @@ class SkyRenderer(
         GLES30.glUniform1f(uPointScale, pointScale)
         GLES30.glUniform1f(uMaxPointSize, maxPointSize)
         GLES30.glUniform1f(uCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uNightMode, nightModeUniform)
         GLES30.glUniform1f(uLimitMag, inputs.limitingMagnitude.toFloat())
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, vbo)
@@ -329,6 +349,7 @@ class SkyRenderer(
         GLES30.glUniformMatrix4fv(uMilkyWayMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uMilkyWayGain, if (cameraMode) MilkyWayAppearance.CAMERA_GAIN else 1f)
         GLES30.glUniform1f(uMilkyWayCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uMilkyWayNightMode, nightModeUniform)
         val stride = MilkyWayMesh.FLOATS_PER_VERTEX * Float.SIZE_BYTES
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, milkyWayVbo)
         GLES30.glEnableVertexAttribArray(MilkyWayShaders.ATTRIB_POSITION)
@@ -381,6 +402,7 @@ class SkyRenderer(
         GLES30.glUniformMatrix4fv(uArtMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uArtEdgeFade, ConstellationArtAppearance.EDGE_FADE)
         GLES30.glUniform1f(uArtCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uArtNightMode, nightModeUniform)
         GLES30.glUniform1i(uArtSampler, 0)
         GLES30.glActiveTexture(GLES30.GL_TEXTURE0)
         val stride = ConstellationArtMesh.FLOATS_PER_VERTEX * Float.SIZE_BYTES
@@ -470,6 +492,7 @@ class SkyRenderer(
         GLES30.glUniform1f(uDeepSkyFocalPx, ((viewportHeight / 2.0) / tan(Math.toRadians(fovYDeg / 2))).toFloat())
         GLES30.glUniform1f(uDeepSkyMinRadiusPx, DeepSkyAppearance.MIN_RADIUS_DP * pointScale)
         GLES30.glUniform1f(uDeepSkyCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uDeepSkyNightMode, nightModeUniform)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, deepSkyVbo)
         bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_POSITION, 3, DeepSkyVertices.POSITION_OFFSET)
         bindDeepSkyAttribute(DeepSkyShaders.ATTRIB_CORNER, 2, DeepSkyVertices.CORNER_OFFSET)
@@ -511,6 +534,7 @@ class SkyRenderer(
         lineProgram.use()
         GLES30.glUniformMatrix4fv(uLineMvp, 1, false, horizonMvpFloats, 0)
         GLES30.glUniform1f(uLineCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uLineNightMode, nightModeUniform)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, guideVbo)
         GLES30.glEnableVertexAttribArray(LineShaders.ATTRIB_POSITION)
         GLES30.glVertexAttribPointer(
@@ -546,6 +570,7 @@ class SkyRenderer(
         GLES30.glUniform1f(uBodyPointScale, pointScale)
         GLES30.glUniform1f(uBodyMaxPointSize, maxPointSize)
         GLES30.glUniform1f(uBodyCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uBodyNightMode, nightModeUniform)
         setMoonUniforms(mvp, fovYDeg)
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, bodyVbo)
@@ -626,6 +651,7 @@ class SkyRenderer(
         lineProgram.use()
         GLES30.glUniformMatrix4fv(uLineMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uLineCameraMode, cameraModeUniform)
+        GLES30.glUniform1f(uLineNightMode, nightModeUniform)
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, lineVbo)
         GLES30.glEnableVertexAttribArray(LineShaders.ATTRIB_POSITION)
         GLES30.glVertexAttribPointer(

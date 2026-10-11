@@ -70,6 +70,7 @@ object DeepSkyShaders {
         precision mediump float;
 
         uniform float uCameraMode;   // 0 enhanced view, 1 camera view: see OverlayBlend
+        ${NightMode.GLSL_UNIFORM}
 
         in vec2 vUv;
         in vec3 vColor;
@@ -125,6 +126,7 @@ object DeepSkyShaders {
             // in proportion to its own strength.
             float alpha = mix(1.0, min(1.0, max(max(c.r, c.g), c.b)), uCameraMode);
             fragColor = vec4(c, alpha);
+            ${NightMode.GLSL_APPLY}
         }
     """.trimIndent()
 }

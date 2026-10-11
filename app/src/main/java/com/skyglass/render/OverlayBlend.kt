@@ -40,6 +40,17 @@ object OverlayBlend {
      */
     fun bodies(): Factors = OVER
 
+    /**
+     * What the surface is cleared to each frame (premultiplied). Enhanced view: opaque black, in
+     * either colour mode. Camera view: transparent, or in night mode black at
+     * [NightMode.CAMERA_IMAGE_COVER], which dims the camera image the GL surface is composited over.
+     */
+    fun clearColor(cameraMode: Boolean, nightMode: Boolean): Rgba = when {
+        !cameraMode -> Rgba(0.0, 0.0, 0.0, 1.0)
+        nightMode -> Rgba(0.0, 0.0, 0.0, NightMode.CAMERA_IMAGE_COVER)
+        else -> Rgba(0.0, 0.0, 0.0, 0.0)
+    }
+
     /** The smallest alpha for which a premultiplied colour is valid (rgb <= alpha). */
     fun alphaFor(r: Double, g: Double, b: Double): Double = min(1.0, max(max(r, g), b))
 

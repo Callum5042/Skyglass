@@ -36,6 +36,7 @@ object ConstellationArtShaders {
         uniform vec3 uColor;         // tint times strength
         uniform float uEdgeFade;     // fraction of the image over which its edges fade out
         uniform float uCameraMode;   // 0 enhanced view, 1 camera view: see OverlayBlend
+        ${NightMode.GLSL_UNIFORM}
 
         in vec2 vTexCoord;
         out vec4 fragColor;
@@ -47,6 +48,7 @@ object ConstellationArtShaders {
             vec3 c = uColor * lum;
             float alpha = mix(1.0, min(1.0, max(max(c.r, c.g), c.b)), uCameraMode);
             fragColor = vec4(c, alpha);
+            ${NightMode.GLSL_APPLY}
         }
     """.trimIndent()
 }

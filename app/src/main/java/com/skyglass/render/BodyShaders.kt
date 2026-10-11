@@ -59,6 +59,7 @@ object BodyShaders {
         uniform vec3 uMoonLight;       // unit, sprite frame (x right, y up, z toward the viewer)
         uniform float uMoonOccluder;   // true lunar radius as a fraction of the drawn disc's radius
         uniform float uCameraMode;     // 0 enhanced view, 1 camera view: see OverlayBlend
+        ${NightMode.GLSL_UNIFORM}
 
         in vec3 vColor;
         flat in float vKind;
@@ -106,6 +107,7 @@ object BodyShaders {
             // Over a camera image the colour must be covered by alpha (premultiplied). The glows'
             // alpha 0 is only right on the opaque black of the enhanced view.
             fragColor.a = max(fragColor.a, uCameraMode * min(1.0, max(max(fragColor.r, fragColor.g), fragColor.b)));
+            ${NightMode.GLSL_APPLY}
         }
     """.trimIndent()
 }

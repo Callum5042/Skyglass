@@ -38,6 +38,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -204,215 +205,223 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
             )
         }
         SkyGlView(viewModel, Modifier.fillMaxSize())
-        SkyOverlay(
-            renderInputs = viewModel.renderInputs,
-            labels = state.constellationLabels,
-            bodies = state.bodies,
-            selectedStar = state.selectedStar,
-            selectedBody = selectedBody,
-            deepSkyLabels = state.deepSkyLabels,
-            selectedDeepSky = state.selectedDeepSky,
-            showDeepSky = state.showDeepSky,
-            selectedConstellation = state.selectedConstellation,
-            showConstellations = state.showConstellations,
-            navigation = state.navigation,
-            navigationInsets = navigationInsets,
-            showHorizon = state.showHorizon,
-            onTap = { x, y, width, height, labelSizes -> viewModel.onSkyTapped(x, y, width, height, density, labelSizes) },
-            modifier = Modifier.fillMaxSize(),
-        )
-        // A popup, so it sits above everything; anchored in this box, which the overlay fills, at the tap.
-        state.tapChoices?.let { choices ->
-            TapChoicesMenu(choices = choices, onChoose = viewModel::chooseTapped, onDismiss = viewModel::dismissTapChoices)
-        }
-        // The search panel takes the cards' place while it is open.
-        state.selectedStar?.takeIf { !searchOpen }?.let { selected ->
-            StarInfoCard(
-                selected = selected,
-                fact = state.objectFacts.forStar(selected.description.hr),
-                observer = state.observer,
-                julianDate = state.julianDate,
-                riseSet = state.riseSet,
-                expanded = detailsExpanded,
-                onToggleExpanded = { detailsExpanded = !detailsExpanded },
-                onDismiss = viewModel::clearSelection,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .safeDrawingPadding()
-                    .padding(ScreenMargin)
-                    .padding(top = TopControlsHeight)
-                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
-            )
-        }
-        state.selectedDeepSky?.takeIf { !searchOpen }?.let { selected ->
-            DeepSkyInfoCard(
-                selected = selected,
-                image = state.objectImages.forDeepSky(selected.obj.id),
-                fact = state.objectFacts.forDeepSky(selected.obj.id),
-                observer = state.observer,
-                julianDate = state.julianDate,
-                riseSet = state.riseSet,
-                expanded = detailsExpanded,
-                onToggleExpanded = { detailsExpanded = !detailsExpanded },
-                onDismiss = viewModel::clearSelection,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .safeDrawingPadding()
-                    .padding(ScreenMargin)
-                    .padding(top = TopControlsHeight)
-                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
-            )
-        }
-        state.selectedConstellation?.takeIf { !searchOpen }?.let { selected ->
-            ConstellationInfoCard(
-                description = selected,
-                observer = state.observer,
-                julianDate = state.julianDate,
-                expanded = detailsExpanded,
-                onToggleExpanded = { detailsExpanded = !detailsExpanded },
-                onDismiss = viewModel::clearSelection,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .safeDrawingPadding()
-                    .padding(ScreenMargin)
-                    .padding(top = TopControlsHeight)
-                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
-            )
-        }
-        selectedBody?.takeIf { !searchOpen }?.let { body ->
-            BodyInfoCard(
-                position = body,
-                image = state.objectImages.forBody(body.body),
-                moons = state.objectImages.moonsOf(body.body),
-                fact = state.objectFacts.forBody(body.body),
-                observer = state.observer,
-                julianDate = state.julianDate,
-                riseSet = state.riseSet,
-                expanded = detailsExpanded,
-                onToggleExpanded = { detailsExpanded = !detailsExpanded },
-                onDismiss = viewModel::clearSelection,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .safeDrawingPadding()
-                    .padding(ScreenMargin)
-                    .padding(top = TopControlsHeight)
-                    .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
-            )
-        }
-        if (searchOpen) {
-            SearchPanel(
-                search = viewModel::search,
-                catalogueReady = state.starCount != null,
-                query = searchQuery,
-                onQueryChange = { searchQuery = it },
-                onSelect = { result ->
-                    viewModel.navigateTo(result)
-                    searchOpen = false
-                    searchQuery = ""
-                },
-                onClose = { searchOpen = false },
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .safeDrawingPadding()
-                    .padding(ScreenMargin)
-                    .padding(top = TopControlsHeight),
-            )
-        }
-        CameraToggle(
-            checked = state.viewMode == ViewMode.CAMERA,
-            onCheckedChange = { wantCamera ->
-                viewModel.clearCameraProblem()
-                when {
-                    !wantCamera -> viewModel.setViewMode(ViewMode.ENHANCED)
-                    hasCameraPermission -> viewModel.setViewMode(ViewMode.CAMERA)
-                    else -> {
-                        rationaleBeforeRequest = context.findActivity()?.shouldShowRequestPermissionRationale(CAMERA_PERMISSION) ?: false
-                        cameraPermissionLauncher.launch(CAMERA_PERMISSION)
+        // Everything above the two surfaces, in one layer that night mode turns red (see NightModeUi).
+        // Dialogs and menus are windows of their own and read LocalNightMode.
+        CompositionLocalProvider(LocalNightMode provides state.nightMode) {
+            Box(Modifier.fillMaxSize().nightMode(state.nightMode)) {
+                SkyOverlay(
+                    renderInputs = viewModel.renderInputs,
+                    labels = state.constellationLabels,
+                    bodies = state.bodies,
+                    selectedStar = state.selectedStar,
+                    selectedBody = selectedBody,
+                    deepSkyLabels = state.deepSkyLabels,
+                    selectedDeepSky = state.selectedDeepSky,
+                    showDeepSky = state.showDeepSky,
+                    selectedConstellation = state.selectedConstellation,
+                    showConstellations = state.showConstellations,
+                    navigation = state.navigation,
+                    navigationInsets = navigationInsets,
+                    showHorizon = state.showHorizon,
+                    onTap = { x, y, width, height, labelSizes -> viewModel.onSkyTapped(x, y, width, height, density, labelSizes) },
+                    modifier = Modifier.fillMaxSize(),
+                )
+                // A popup, so it sits above everything; anchored in this box, which the overlay fills, at the tap.
+                state.tapChoices?.let { choices ->
+                    TapChoicesMenu(choices = choices, onChoose = viewModel::chooseTapped, onDismiss = viewModel::dismissTapChoices)
+                }
+                // The search panel takes the cards' place while it is open.
+                state.selectedStar?.takeIf { !searchOpen }?.let { selected ->
+                    StarInfoCard(
+                        selected = selected,
+                        fact = state.objectFacts.forStar(selected.description.hr),
+                        observer = state.observer,
+                        julianDate = state.julianDate,
+                        riseSet = state.riseSet,
+                        expanded = detailsExpanded,
+                        onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                        onDismiss = viewModel::clearSelection,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .safeDrawingPadding()
+                            .padding(ScreenMargin)
+                            .padding(top = TopControlsHeight)
+                            .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+                    )
+                }
+                state.selectedDeepSky?.takeIf { !searchOpen }?.let { selected ->
+                    DeepSkyInfoCard(
+                        selected = selected,
+                        image = state.objectImages.forDeepSky(selected.obj.id),
+                        fact = state.objectFacts.forDeepSky(selected.obj.id),
+                        observer = state.observer,
+                        julianDate = state.julianDate,
+                        riseSet = state.riseSet,
+                        expanded = detailsExpanded,
+                        onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                        onDismiss = viewModel::clearSelection,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .safeDrawingPadding()
+                            .padding(ScreenMargin)
+                            .padding(top = TopControlsHeight)
+                            .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+                    )
+                }
+                state.selectedConstellation?.takeIf { !searchOpen }?.let { selected ->
+                    ConstellationInfoCard(
+                        description = selected,
+                        observer = state.observer,
+                        julianDate = state.julianDate,
+                        expanded = detailsExpanded,
+                        onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                        onDismiss = viewModel::clearSelection,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .safeDrawingPadding()
+                            .padding(ScreenMargin)
+                            .padding(top = TopControlsHeight)
+                            .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+                    )
+                }
+                selectedBody?.takeIf { !searchOpen }?.let { body ->
+                    BodyInfoCard(
+                        position = body,
+                        image = state.objectImages.forBody(body.body),
+                        moons = state.objectImages.moonsOf(body.body),
+                        fact = state.objectFacts.forBody(body.body),
+                        observer = state.observer,
+                        julianDate = state.julianDate,
+                        riseSet = state.riseSet,
+                        expanded = detailsExpanded,
+                        onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                        onDismiss = viewModel::clearSelection,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .safeDrawingPadding()
+                            .padding(ScreenMargin)
+                            .padding(top = TopControlsHeight)
+                            .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+                    )
+                }
+                if (searchOpen) {
+                    SearchPanel(
+                        search = viewModel::search,
+                        catalogueReady = state.starCount != null,
+                        query = searchQuery,
+                        onQueryChange = { searchQuery = it },
+                        onSelect = { result ->
+                            viewModel.navigateTo(result)
+                            searchOpen = false
+                            searchQuery = ""
+                        },
+                        onClose = { searchOpen = false },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .safeDrawingPadding()
+                            .padding(ScreenMargin)
+                            .padding(top = TopControlsHeight),
+                    )
+                }
+                CameraToggle(
+                    checked = state.viewMode == ViewMode.CAMERA,
+                    onCheckedChange = { wantCamera ->
+                        viewModel.clearCameraProblem()
+                        when {
+                            !wantCamera -> viewModel.setViewMode(ViewMode.ENHANCED)
+                            hasCameraPermission -> viewModel.setViewMode(ViewMode.CAMERA)
+                            else -> {
+                                rationaleBeforeRequest = context.findActivity()?.shouldShowRequestPermissionRationale(CAMERA_PERMISSION) ?: false
+                                cameraPermissionLauncher.launch(CAMERA_PERMISSION)
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .safeDrawingPadding()
+                        .padding(16.dp),
+                )
+                // Bottom: the guidance banner while searching, then status messages, with the "faintest stars" slider under them.
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .safeDrawingPadding()
+                        .padding(ScreenMargin)
+                        .onGloballyPositioned { bottomPanelTopPx = it.boundsInRoot().top },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    state.navigation?.let { navigation ->
+                        NavigationBanner(
+                            navigation = navigation,
+                            bodies = state.bodies,
+                            observer = state.observer,
+                            julianDate = state.julianDate,
+                            limitingMagnitude = state.limitingMagnitude,
+                            showDeepSky = state.showDeepSky,
+                            onStop = viewModel::stopNavigation,
+                            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                        )
+                    }
+                    StatusOverlay(
+                        state = state,
+                        hasLocationPermission = hasLocationPermission,
+                        onRequestPermission = { permissionLauncher.launch(LOCATION_PERMISSIONS) },
+                        onOpenSettings = {
+                            try {
+                                context.startActivity(
+                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+                                )
+                            } catch (e: ActivityNotFoundException) {
+                                // No settings app to open; the message stays up and says where to go.
+                            }
+                        },
+                    )
+                    if (starLimitOpen) {
+                        StarLimitSlider(
+                            limitingMagnitude = state.limitingMagnitude,
+                            onChange = viewModel::setLimitingMagnitude,
+                            onChangeFinished = viewModel::saveLimitingMagnitude,
+                            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                        )
+                        DisplaySwitches(
+                            showHorizon = state.showHorizon,
+                            showGrid = state.showGrid,
+                            showDeepSky = state.showDeepSky,
+                            showMilkyWay = state.showMilkyWay,
+                            showConstellations = state.showConstellations,
+                            showConstellationArt = state.showConstellationArt,
+                            nightMode = state.nightMode,
+                            onShowHorizonChange = viewModel::setShowHorizon,
+                            onShowGridChange = viewModel::setShowGrid,
+                            onShowDeepSkyChange = viewModel::setShowDeepSky,
+                            onShowMilkyWayChange = viewModel::setShowMilkyWay,
+                            onShowConstellationsChange = viewModel::setShowConstellations,
+                            onShowConstellationArtChange = viewModel::setShowConstellationArt,
+                            onNightModeChange = viewModel::setNightMode,
+                            modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
+                        )
                     }
                 }
-            },
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .safeDrawingPadding()
-                .padding(16.dp),
-        )
-        // Bottom: the guidance banner while searching, then status messages, with the "faintest stars" slider under them.
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .safeDrawingPadding()
-                .padding(ScreenMargin)
-                .onGloballyPositioned { bottomPanelTopPx = it.boundsInRoot().top },
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            state.navigation?.let { navigation ->
-                NavigationBanner(
-                    navigation = navigation,
-                    bodies = state.bodies,
-                    observer = state.observer,
-                    julianDate = state.julianDate,
-                    limitingMagnitude = state.limitingMagnitude,
-                    showDeepSky = state.showDeepSky,
-                    onStop = viewModel::stopNavigation,
-                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
-                )
+                // Top left, mirroring the camera switch. The slider itself is hidden until asked for, so it
+                // neither covers the sky nor turns a tap near the bottom edge into a slider move.
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .safeDrawingPadding()
+                        .padding(ScreenMargin),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    StarLimitToggle(
+                        expanded = starLimitOpen,
+                        onClick = { starLimitOpen = !starLimitOpen },
+                    )
+                    SearchToggle(
+                        expanded = searchOpen,
+                        onClick = { searchOpen = !searchOpen },
+                    )
+                }
             }
-            StatusOverlay(
-                state = state,
-                hasLocationPermission = hasLocationPermission,
-                onRequestPermission = { permissionLauncher.launch(LOCATION_PERMISSIONS) },
-                onOpenSettings = {
-                    try {
-                        context.startActivity(
-                            Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                        )
-                    } catch (e: ActivityNotFoundException) {
-                        // No settings app to open; the message stays up and says where to go.
-                    }
-                },
-            )
-            if (starLimitOpen) {
-                StarLimitSlider(
-                    limitingMagnitude = state.limitingMagnitude,
-                    onChange = viewModel::setLimitingMagnitude,
-                    onChangeFinished = viewModel::saveLimitingMagnitude,
-                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
-                )
-                DisplaySwitches(
-                    showHorizon = state.showHorizon,
-                    showGrid = state.showGrid,
-                    showDeepSky = state.showDeepSky,
-                    showMilkyWay = state.showMilkyWay,
-                    showConstellations = state.showConstellations,
-                    showConstellationArt = state.showConstellationArt,
-                    onShowHorizonChange = viewModel::setShowHorizon,
-                    onShowGridChange = viewModel::setShowGrid,
-                    onShowDeepSkyChange = viewModel::setShowDeepSky,
-                    onShowMilkyWayChange = viewModel::setShowMilkyWay,
-                    onShowConstellationsChange = viewModel::setShowConstellations,
-                    onShowConstellationArtChange = viewModel::setShowConstellationArt,
-                    modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
-                )
-            }
-        }
-        // Top left, mirroring the camera switch. The slider itself is hidden until asked for, so it
-        // neither covers the sky nor turns a tap near the bottom edge into a slider move.
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .safeDrawingPadding()
-                .padding(ScreenMargin),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            StarLimitToggle(
-                expanded = starLimitOpen,
-                onClick = { starLimitOpen = !starLimitOpen },
-            )
-            SearchToggle(
-                expanded = searchOpen,
-                onClick = { searchOpen = !searchOpen },
-            )
         }
     }
 }
@@ -569,10 +578,11 @@ private fun StarLimitToggle(expanded: Boolean, onClick: () -> Unit, modifier: Mo
 }
 
 /**
- * The display switches, two to a row: the horizon line with its compass letters, the altitude/azimuth
- * grid, the deep-sky objects and the Milky Way band, then the constellation lines and names and the
- * constellation illustrations on rows of their own (the labels are too long for half the card's width
- * at 360 dp), with the illustrations' credit, which their licence asks for.
+ * The display switches: night mode on a row of its own, then two to a row the horizon line with its
+ * compass letters, the altitude/azimuth grid, the deep-sky objects and the Milky Way band, then the
+ * constellation lines and names and the constellation illustrations on rows of their own (the labels
+ * are too long for half the card's width at 360 dp), with the illustrations' credit, which their
+ * licence asks for.
  */
 @Composable
 private fun DisplaySwitches(
@@ -582,15 +592,18 @@ private fun DisplaySwitches(
     showMilkyWay: Boolean,
     showConstellations: Boolean,
     showConstellationArt: Boolean,
+    nightMode: Boolean,
     onShowHorizonChange: (Boolean) -> Unit,
     onShowGridChange: (Boolean) -> Unit,
     onShowDeepSkyChange: (Boolean) -> Unit,
     onShowMilkyWayChange: (Boolean) -> Unit,
     onShowConstellationsChange: (Boolean) -> Unit,
     onShowConstellationArtChange: (Boolean) -> Unit,
+    onNightModeChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.background(CardBackground, RoundedCornerShape(24.dp)).padding(horizontal = 8.dp)) {
+        GuideSwitch(stringResource(R.string.guide_night_mode), nightMode, onNightModeChange, Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GuideSwitch(stringResource(R.string.guide_horizon), showHorizon, onShowHorizonChange, Modifier.weight(1f))
             GuideSwitch(stringResource(R.string.guide_grid), showGrid, onShowGridChange, Modifier.weight(1f))

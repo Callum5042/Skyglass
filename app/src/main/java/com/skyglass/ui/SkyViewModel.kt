@@ -162,6 +162,8 @@ data class SkyUiState(
     val showConstellations: Boolean = true,
     /** The constellation illustrations; on by default. The selected constellation's is drawn either way. */
     val showConstellationArt: Boolean = true,
+    /** Everything in red, for dark-adapted eyes (see `NightMode`); off by default. */
+    val nightMode: Boolean = false,
     /** The deep-sky objects that are named on screen; empty until the catalogue has loaded. */
     val deepSkyLabels: List<DeepSkyLabel> = emptyList(),
     /** The "what's here?" menu after a tap on several things at once; null when it is not open. */
@@ -224,6 +226,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private val savedShowMilkyWay = displayPreferences.getBoolean(KEY_SHOW_MILKY_WAY, true)
     private val savedShowConstellations = displayPreferences.getBoolean(KEY_SHOW_CONSTELLATIONS, true)
     private val savedShowConstellationArt = displayPreferences.getBoolean(KEY_SHOW_CONSTELLATION_ART, true)
+    private val savedNightMode = displayPreferences.getBoolean(KEY_NIGHT_MODE, false)
 
     private val _uiState = MutableStateFlow(
         SkyUiState(
@@ -235,6 +238,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             showMilkyWay = savedShowMilkyWay,
             showConstellations = savedShowConstellations,
             showConstellationArt = savedShowConstellationArt,
+            nightMode = savedNightMode,
         ),
     )
     val uiState: StateFlow<SkyUiState> = _uiState.asStateFlow()
@@ -247,6 +251,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         renderInputs.showMilkyWay = savedShowMilkyWay
         renderInputs.showConstellations = savedShowConstellations
         renderInputs.showConstellationArt = savedShowConstellationArt
+        renderInputs.nightMode = savedNightMode
         viewModelScope.launch {
             val sky = withContext(Dispatchers.IO) {
                 val assets = application.assets
@@ -608,6 +613,13 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         displayPreferences.edit().putBoolean(KEY_SHOW_MILKY_WAY, show).apply()
     }
 
+    /** Turns night mode (everything in red) on or off, and keeps the choice across restarts. */
+    fun setNightMode(on: Boolean) {
+        renderInputs.nightMode = on
+        _uiState.update { it.copy(nightMode = on) }
+        displayPreferences.edit().putBoolean(KEY_NIGHT_MODE, on).apply()
+    }
+
     fun hasLocationPermission(): Boolean = locationSource.hasPermission()
 
     fun hasCameraPermission(): Boolean =
@@ -763,5 +775,6 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         const val KEY_SHOW_MILKY_WAY = "show_milky_way"
         const val KEY_SHOW_CONSTELLATIONS = "show_constellations"
         const val KEY_SHOW_CONSTELLATION_ART = "show_constellation_art"
+        const val KEY_NIGHT_MODE = "night_mode"
     }
 }

@@ -35,15 +35,17 @@ fun TapChoicesMenu(
     onChoose: (SearchResult) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val nightMode = LocalNightMode.current
     Box(Modifier.offset { IntOffset(choices.x.roundToInt(), choices.y.roundToInt()) }.size(0.dp)) {
         DropdownMenu(
             expanded = true,
             onDismissRequest = onDismiss,
             offset = DpOffset(0.dp, MenuGap),
             shape = RoundedCornerShape(12.dp),
-            containerColor = CardBackground,
+            containerColor = CardBackground.inNightMode(nightMode),
             shadowElevation = 0.dp,
-            modifier = Modifier.widthIn(min = 240.dp, max = 340.dp),
+            // A window of its own, so it is filtered here rather than with the sky screen.
+            modifier = Modifier.widthIn(min = 240.dp, max = 340.dp).nightMode(nightMode),
         ) {
             Text(
                 text = stringResource(R.string.tap_choices_title),

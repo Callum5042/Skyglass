@@ -85,6 +85,9 @@ class SkyRenderInputs {
      */
     @Volatile var cameraMode: Boolean = false
 
+    /** Draw everything in red, and dim the camera image, to keep the eyes dark-adapted; see [NightMode]. */
+    @Volatile var nightMode: Boolean = false
+
     /**
      * GL thread -> main thread: the largest point sprite the GPU will draw, in pixels, so a tap's
      * reach never exceeds what is actually visible. Unbounded until the GL context exists.

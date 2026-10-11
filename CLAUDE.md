@@ -6,9 +6,9 @@ Guidance for Claude Code when working in this repository. Detailed per-feature d
 
 Skyglass is a native Android stargazing app (Kotlin, Jetpack Compose, OpenGL ES 3.0). Point the phone at the sky and it draws what is there, using the rotation vector sensor, location, time and magnetic declination.
 
-Built: naked-eye stars (Yale Bright Star Catalogue, V ≤ 6.5), constellation lines, names and details cards (myth, brightest stars, chart), constellation artwork (Stellarium's illustrations), Sun, Moon (with phase) and planets, ~175 deep-sky objects, a procedural Milky Way band, horizon line, compass letters and alt-az grid, tap-to-identify with details cards (position, rise/set, a short "about" and "Did you know?" fact, etc.; photos of deep-sky objects, the Sun, Moon and planets, and a gallery of the planets' major moons), search with on-screen guidance, a faintest-stars slider, and a camera view that draws the sky over the live rear-camera image.
+Built: naked-eye stars (Yale Bright Star Catalogue, V ≤ 6.5), constellation lines, names and details cards (myth, brightest stars, chart), constellation artwork (Stellarium's illustrations), Sun, Moon (with phase) and planets, ~175 deep-sky objects, a procedural Milky Way band, horizon line, compass letters and alt-az grid, tap-to-identify with details cards (position, rise/set, a short "about" and "Did you know?" fact, etc.; photos of deep-sky objects, the Sun, Moon and planets, and a gallery of the planets' major moons), search with on-screen guidance, a faintest-stars slider, a night (red) mode, and a camera view that draws the sky over the live rear-camera image.
 
-Not built: zoom, night (red) mode, planetary moons, asteroids/comets, daylight sky, constellation boundaries.
+Not built: zoom, planetary moons, asteroids/comets, daylight sky, constellation boundaries.
 
 ## Commands
 
@@ -30,7 +30,7 @@ The configuration cache is enabled, and the daemon JVM toolchain is pinned to 25
   `clip = P · S(displayRotation) · R(q)ᵀ · M(true→magnetic) · H(LST, lat) · v_eq`.
   Horizon geometry is in true ENU and uses the same chain without `H`. No nutation or aberration anywhere, so everything stays in step.
 - **Draw order:** Milky Way, constellation art (+ highlighted constellation's), horizon guides, constellation lines (+ highlighted constellation), deep-sky objects, stars, then Sun/Moon/planets (`SkyBody` enum order; Moon last).
-- **Two views.** Enhanced: additive blending onto opaque black. Camera: GL surface is translucent over a CameraX preview; shaders take `uCameraMode` and output `alpha = max(r, g, b)` with premultiplied "over" blending (`render/OverlayBlend`). Any new shader must follow this rule.
+- **Two views.** Enhanced: additive blending onto opaque black. Camera: GL surface is translucent over a CameraX preview; shaders take `uCameraMode` and output `alpha = max(r, g, b)` with premultiplied "over" blending (`render/OverlayBlend`). Any new shader must follow this rule, and must declare `NightMode.GLSL_UNIFORM` and end with `NightMode.GLSL_APPLY` (night mode; `NightModeTest` checks every fragment shader). Compose UI above the GL surface sits in one `Modifier.nightMode` layer; popups and dialogs apply it themselves from `LocalNightMode`.
 - **Threading.** `SkyRenderer` runs on the GL thread; values cross from the main thread through `@Volatile` fields in `SkyRenderInputs` (arrays are replaced wholesale, never mutated). Sensor callbacks and `HeadingFusion` run on the main thread. Taps, labels and guidance project on the CPU with the last frame's `lastMvp` / `lastHorizonMvp`.
 - **Orientation:** TYPE_ROTATION_VECTOR fused with TYPE_GAME_ROTATION_VECTOR (`sensors/HeadingFusion`): motion from the gyroscope, heading from the magnetometer through a 2 s low-pass, so magnetometer jumps become glides.
 - **Packages:**

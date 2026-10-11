@@ -135,6 +135,7 @@
     <string name="guide_milky_way">Milky Way</string>
     <string name="guide_constellations">Constellations</string>
     <string name="guide_constellation_art">Constellation art</string>
+    <string name="guide_night_mode">Night mode (red)</string>
     <string name="constellation_art_credit">Constellation art by Johan Meuris (Stellarium), Free Art License 1.3</string>
 
     <string name="constellation_subtitle">%1$s · %2$s</string>

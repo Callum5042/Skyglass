@@ -58,4 +58,4 @@ JVM tests in `app/src/test` cover the math, catalogues, hit testing, search, nav
 
 ## Keeping docs up to date
 
-Keep this file short: only what is needed to work anywhere in the codebase. Put feature rationale, measurements, provenance and "not verified on a device" lists in `docs/design-notes.md` under the feature's section.
+Keep this file short: only what is needed to work anywhere in the codebase. Put feature rationale, traps, provenance and licences in `docs/design-notes.md` under the feature's section, and add anything not built to its "Not built" list. Write the decision and its reason in a line or two: no history ("used to", "up from"), no restating what the code shows, no test lists. The user tests on a real phone, so don't add "not verified on a device" lists.

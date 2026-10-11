@@ -189,7 +189,7 @@ private fun View.containsTextureView(): Boolean =
  * The focal length is the first of `LENS_INFO_AVAILABLE_FOCAL_LENGTHS`. A fixed-lens camera lists
  * one; a logical multi-camera or optical-zoom camera may list several, and then this is the main
  * lens only by convention, so a phone that uses another at zoom 1.0 would be off by the ratio of
- * the two (not verified on such hardware). `LENS_INTRINSIC_CALIBRATION` or the focal length of a
+ * the two. `LENS_INTRINSIC_CALIBRATION` or the focal length of a
  * capture result would be exact, but are missing or unreliable on many devices.
  */
 @OptIn(ExperimentalCamera2Interop::class)

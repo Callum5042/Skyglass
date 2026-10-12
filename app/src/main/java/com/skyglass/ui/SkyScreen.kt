@@ -93,8 +93,9 @@ private const val CAMERA_PROBLEM_TIMEOUT_MS = 8_000L
 /** A minute moves the sky by a quarter of a degree, well within what the list says. */
 private const val TONIGHT_REFRESH_MS = 60_000L
 
-/** Panels and info cards sit below the top bar. */
+/** Panels and info cards sit below the top bar, with a gap so they don't touch its buttons. */
 private val TopControlsHeight = 48.dp
+private val BelowTopControls = TopControlsHeight + 12.dp
 
 /** Page margin round every panel, and how far the guidance arrow's centre stays from what it must not cover. */
 private val ScreenMargin = 16.dp
@@ -128,8 +129,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     BackHandler(enabled = searchOpen) { searchOpen = false }
 
-    // The Tonight panel, in the same place as the search panel, so only one of them is open at a time.
-    // Worked out when it opens, and kept current while it is open.
+    // The Tonight panel, in the same place as the search panel; worked out when it opens, and kept
+    // current while it is open. Only one of Tonight, Search and Display is open at a time.
     var tonightOpen by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = tonightOpen) { tonightOpen = false }
     val locationKnown = state.observer != null
@@ -271,7 +272,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .align(Alignment.TopCenter)
                             .safeDrawingPadding()
                             .padding(ScreenMargin)
-                            .padding(top = TopControlsHeight)
+                            .padding(top = BelowTopControls)
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
@@ -290,7 +291,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .align(Alignment.TopCenter)
                             .safeDrawingPadding()
                             .padding(ScreenMargin)
-                            .padding(top = TopControlsHeight)
+                            .padding(top = BelowTopControls)
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
@@ -306,7 +307,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .align(Alignment.TopCenter)
                             .safeDrawingPadding()
                             .padding(ScreenMargin)
-                            .padding(top = TopControlsHeight)
+                            .padding(top = BelowTopControls)
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
@@ -326,7 +327,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .align(Alignment.TopCenter)
                             .safeDrawingPadding()
                             .padding(ScreenMargin)
-                            .padding(top = TopControlsHeight)
+                            .padding(top = BelowTopControls)
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
@@ -345,7 +346,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .align(Alignment.TopCenter)
                             .safeDrawingPadding()
                             .padding(ScreenMargin)
-                            .padding(top = TopControlsHeight)
+                            .padding(top = BelowTopControls)
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
@@ -365,7 +366,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .align(Alignment.TopCenter)
                             .safeDrawingPadding()
                             .padding(ScreenMargin)
-                            .padding(top = TopControlsHeight),
+                            .padding(top = BelowTopControls),
                     )
                 }
                 if (tonightOpen) {
@@ -381,7 +382,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .align(Alignment.TopCenter)
                             .safeDrawingPadding()
                             .padding(ScreenMargin)
-                            .padding(top = TopControlsHeight),
+                            .padding(top = BelowTopControls),
                     )
                 }
                 // Bottom: the guidance banner while searching, then status messages, with the "faintest stars" slider under them.
@@ -454,15 +455,27 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     tonightOpen = tonightOpen,
                     onTonightClick = {
                         tonightOpen = !tonightOpen
-                        if (tonightOpen) searchOpen = false
+                        if (tonightOpen) {
+                            searchOpen = false
+                            starLimitOpen = false
+                        }
                     },
                     searchOpen = searchOpen,
                     onSearchClick = {
                         searchOpen = !searchOpen
-                        if (searchOpen) tonightOpen = false
+                        if (searchOpen) {
+                            tonightOpen = false
+                            starLimitOpen = false
+                        }
                     },
                     displayOpen = starLimitOpen,
-                    onDisplayClick = { starLimitOpen = !starLimitOpen },
+                    onDisplayClick = {
+                        starLimitOpen = !starLimitOpen
+                        if (starLimitOpen) {
+                            searchOpen = false
+                            tonightOpen = false
+                        }
+                    },
                     cameraOn = state.viewMode == ViewMode.CAMERA,
                     onCameraChange = { wantCamera ->
                         viewModel.clearCameraProblem()

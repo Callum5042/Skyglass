@@ -8,7 +8,7 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 
 ## Top bar
 
-"Tonight" with its name on the left, then Search, Display and the camera view as 48 dp icon buttons on the right: four labelled buttons don't fit across 360 dp, and Tonight keeps its label because it is where a beginner starts. The glyphs are drawn on a `Canvas` (`TopBar`), so there is no icon dependency. An open panel or the camera view gets a lit border. The Tonight and search panels share the place under the bar, so opening one closes the other, and both hide the details card.
+"Tonight" with its name on the left, then Search, Display and the camera view as 48 dp icon buttons on the right: four labelled buttons don't fit across 360 dp, and Tonight keeps its label because it is where a beginner starts. The glyphs are drawn on a `Canvas` (`TopBar`), so there is no icon dependency. An open panel or the camera view gets a lit border. Only one of Tonight, Search and Display is open at a time, so opening one closes the others; Tonight and Search share the place under the bar (12 dp below the buttons) and hide the details card.
 
 ## Sun, Moon and planets
 

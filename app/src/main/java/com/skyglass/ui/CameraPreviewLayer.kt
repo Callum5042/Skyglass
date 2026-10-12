@@ -8,18 +8,23 @@ import android.view.ViewGroup
 import androidx.annotation.OptIn
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraState
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
+import androidx.camera.core.ZoomState
 import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
@@ -36,9 +41,15 @@ import com.skyglass.render.CameraSensor
  * the centre of the same bounds). The camera runs only while the host is resumed: it is bound
  * when the screen resumes and released when it pauses or this leaves the composition.
  *
- * Whenever the preview's stream or size changes, [onFieldOfView] gets the vertical field of view
+ * Whenever the preview's stream, size or zoom changes, [onFieldOfView] gets the vertical field of view
  * that the image has *as laid out*, computed by [CameraFov] from the camera's focal length and
- * sensor size, so the caller can project the sky with the same field of view.
+ * sensor size and narrowed by the zoom ratio the camera reports, so the caller can project the sky
+ * with the same field of view.
+ *
+ * The camera is zoomed to [zoomRatio] (clamped by CameraX to what it can do); [onZoomRange] gets the
+ * ratios the bound camera supports, so the caller can keep its own value inside them. The field of
+ * view follows the ratio the camera *reports* (its `ZoomState`), not the one asked for, so the sky
+ * changes with the image.
  *
  * The preview must be a `SurfaceView` (`PERFORMANCE` mode): the translucent GL surface sits above
  * it (`setZOrderMediaOverlay`), and both are below the window. CameraX falls back to a
@@ -59,7 +70,9 @@ import com.skyglass.render.CameraSensor
 @OptIn(ExperimentalCamera2Interop::class)
 @Composable
 fun CameraPreviewLayer(
+    zoomRatio: Double,
     onFieldOfView: (fovYDeg: Double) -> Unit,
+    onZoomRange: (minRatio: Double, maxRatio: Double) -> Unit,
     onProblem: () -> Unit,
     onWaiting: (waiting: Boolean) -> Unit,
     onUnsupported: () -> Unit,
@@ -74,6 +87,10 @@ fun CameraPreviewLayer(
         }
     }
     val currentOnFieldOfView by rememberUpdatedState(onFieldOfView)
+    val currentOnZoomRange by rememberUpdatedState(onZoomRange)
+    val currentZoomRatio by rememberUpdatedState(zoomRatio)
+    // The camera while it is bound, so a new zoom ratio can be sent to it.
+    var boundCamera by remember { mutableStateOf<Camera?>(null) }
     val currentOnProblem by rememberUpdatedState(onProblem)
     val currentOnWaiting by rememberUpdatedState(onWaiting)
     val currentOnUnsupported by rememberUpdatedState(onUnsupported)
@@ -89,7 +106,9 @@ fun CameraPreviewLayer(
             .build()
         var provider: ProcessCameraProvider? = null
         var cameraState: LiveData<CameraState>? = null
+        var zoomState: LiveData<ZoomState>? = null
         var sensor = CameraFov.TYPICAL_PHONE
+        var appliedZoomRatio = 1.0
         var released = false
 
         fun updateFieldOfView() {
@@ -101,7 +120,7 @@ fun CameraPreviewLayer(
                 previewView.width, previewView.height,
                 cropWidthPx = crop.width(), cropHeightPx = crop.height(),
             ) ?: return
-            currentOnFieldOfView(fov.verticalDeg)
+            currentOnFieldOfView(CameraFov.zoomed(fov, appliedZoomRatio).verticalDeg)
         }
 
         val layoutListener = View.OnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
@@ -122,6 +141,12 @@ fun CameraPreviewLayer(
             val verdict = tracker.onState(state.type.toPhase(), state.error?.type.toKind())
             currentOnWaiting(verdict == CameraVerdict.WAITING)
             if (verdict == CameraVerdict.FATAL) currentOnProblem()
+        }
+        val zoomObserver = Observer<ZoomState> { state ->
+            if (released) return@Observer
+            currentOnZoomRange(state.minZoomRatio.toDouble(), state.maxZoomRatio.toDouble())
+            appliedZoomRatio = state.zoomRatio.toDouble()
+            updateFieldOfView()
         }
         previewView.addOnLayoutChangeListener(layoutListener)
         previewView.previewStreamState.observeForever(streamObserver)
@@ -144,6 +169,9 @@ fun CameraPreviewLayer(
                     tracker.attached()
                 }
                 sensor = readSensor(camera.cameraInfo) ?: CameraFov.TYPICAL_PHONE
+                zoomState = camera.cameraInfo.zoomState.also { it.observeForever(zoomObserver) }
+                camera.cameraControl.setZoomRatio(currentZoomRatio.toFloat())
+                boundCamera = camera
                 updateFieldOfView()
             } catch (e: Exception) {
                 Log.w(TAG, "Could not start the camera", e)
@@ -156,9 +184,16 @@ fun CameraPreviewLayer(
             previewView.removeOnLayoutChangeListener(layoutListener)
             previewView.previewStreamState.removeObserver(streamObserver)
             cameraState?.removeObserver(stateObserver)
+            zoomState?.removeObserver(zoomObserver)
+            boundCamera = null
             currentOnWaiting(false)
             provider?.unbind(preview)
         }
+    }
+
+    // A pinch changes the ratio asked for; a newer request supersedes one still being applied.
+    LaunchedEffect(boundCamera, zoomRatio) {
+        boundCamera?.cameraControl?.setZoomRatio(zoomRatio.toFloat())
     }
 
     AndroidView(factory = { previewView }, modifier = modifier)

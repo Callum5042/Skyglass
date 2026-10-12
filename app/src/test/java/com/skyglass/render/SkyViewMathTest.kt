@@ -13,6 +13,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
+import kotlin.math.tan
 
 /**
  * End-to-end checks of the full chain: rotation-vector quaternion + declination + time + place
@@ -175,5 +176,32 @@ class SkyViewMathTest {
         // Element (row 3, col 2) of a perspective matrix is −1; column-major index = col * 4 + row.
         assertEquals(mvp[3, 2].toFloat(), gl[2 * 4 + 3])
         assertEquals(mvp[0, 1].toFloat(), gl[1 * 4 + 0])
+    }
+
+    @Test
+    fun focalLength_isReadBackFromTheMvp_atAnyZoomAndInEveryDisplayRotation() {
+        val heightPx = 2340
+        val q = sensorQuaternion(portraitPointingAt(37.0, 211.0))
+        for (rotation in 0..3) for (fov in listOf(1.0, 12.5, 60.0, 90.0)) {
+            val expected = (heightPx / 2.0) / tan(rad(fov / 2))
+            val mvp = SkyViewMath.modelViewProjection(q, declinationDeg, lstDeg, latDeg, rotation, fov, aspect)
+            assertEquals("rotation $rotation fov $fov", expected, SkyViewMath.focalLengthPx(mvp, heightPx), expected * 1e-12)
+            val horizon = SkyViewMath.horizonModelViewProjection(q, declinationDeg, rotation, fov, aspect)
+            assertEquals("rotation $rotation fov $fov", expected, SkyViewMath.focalLengthPx(horizon, heightPx), expected * 1e-12)
+        }
+    }
+
+    @Test
+    fun focalLength_isHowFarOnScreenAStarAKnownAngleFromTheCentreLands() {
+        // A star 0.3° straight above the view centre is focal · tan(0.3°) pixels above it, at any zoom.
+        val widthPx = 1080
+        val heightPx = 2340
+        val q = sensorQuaternion(portraitPointingAt(37.0, 211.0))
+        for (fov in listOf(1.0, 60.0)) {
+            val mvp = SkyViewMath.modelViewProjection(q, declinationDeg, lstDeg, latDeg, 0, fov, widthPx.toDouble() / heightPx)
+            val centre = checkNotNull(SkyProjection.project(mvp, skyAt(37.0, 211.0), widthPx, heightPx))
+            val above = checkNotNull(SkyProjection.project(mvp, skyAt(37.3, 211.0), widthPx, heightPx))
+            assertEquals("fov $fov", SkyViewMath.focalLengthPx(mvp, heightPx) * tan(rad(0.3)), centre.y - above.y, 1e-6)
+        }
     }
 }

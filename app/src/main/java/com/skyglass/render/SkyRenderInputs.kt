@@ -73,8 +73,10 @@ class SkyRenderInputs {
     @Volatile var highlightedArtImage: Int = -1
 
     /**
-     * Vertical field of view of the projection. [DEFAULT_FOV_Y_DEG] for the enhanced view; in the
-     * camera view the real camera's (see `CameraFov`), so the sky lines up with the image.
+     * Vertical field of view of the projection. In the enhanced view [DEFAULT_FOV_Y_DEG] unless the user
+     * has pinched to zoom (see [SkyZoom]); in the camera view the real camera's at its zoom ratio (see
+     * `CameraFov`), so the sky lines up with the image. Taps and labels read it back from [lastMvp]
+     * (`SkyViewMath.focalLengthPx`), so they always use the field of view of the frame on screen.
      */
     @Volatile var fovYDeg: Double = DEFAULT_FOV_Y_DEG
 
@@ -88,11 +90,6 @@ class SkyRenderInputs {
     /** Draw everything in red, and dim the camera image, to keep the eyes dark-adapted; see [NightMode]. */
     @Volatile var nightMode: Boolean = false
 
-    /**
-     * GL thread -> main thread: the largest point sprite the GPU will draw, in pixels, so a tap's
-     * reach never exceeds what is actually visible. Unbounded until the GL context exists.
-     */
-    @Volatile var maxPointSizePx: Float = Float.MAX_VALUE
 
     /**
      * GL thread -> main thread: the MVP used for the most recent frame, so labels and taps can be

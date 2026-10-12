@@ -27,9 +27,10 @@ import kotlin.math.tan
 
 /**
  * Draws the Milky Way band, the constellation illustrations, the horizon and reference grid, the
- * constellation lines, the deep-sky objects, the star field, then the Sun, Moon and planets. Stars, lines and bodies live in VBOs in the equatorial frame of date; each frame only
- * the MVP matrix changes, built by [SkyViewMath]. The horizon guides are fixed to the observer, so
- * they live in true ENU and are drawn with the same view minus the sky's rotation
+ * constellation lines, the deep-sky objects, the star field, then the Sun, Moon and planets. Stars,
+ * lines and bodies live in VBOs in the equatorial frame of date; each frame only the MVP matrix (and,
+ * while zooming, the field of view in it) changes, built by [SkyViewMath]. The horizon guides are
+ * fixed to the observer, so they live in true ENU and are drawn with the same view minus the sky's rotation
  * ([SkyViewMath.horizonModelViewProjection]). The star, line and guide buffers are static; the body
  * buffer is replaced every few seconds as the bodies move, and re-uploaded when its array instance
  * changes.
@@ -79,9 +80,9 @@ class SkyRenderer(
     private lateinit var bodyProgram: ShaderProgram
     private var uBodyMvp = -1
     private var uBodyPointScale = -1
-    private var uBodyMaxPointSize = -1
+    private var uBodyFocalPx = -1
+    private var uBodyViewportPx = -1
     private var uBodyMoonLight = -1
-    private var uBodyMoonOccluder = -1
     private var uBodyCameraMode = -1
     private var uBodyNightMode = -1
     private var bodyVbo = 0
@@ -159,9 +160,9 @@ class SkyRenderer(
         bodyProgram = ShaderProgram(BodyShaders.VERTEX, BodyShaders.FRAGMENT)
         uBodyMvp = bodyProgram.uniformLocation("uMvp")
         uBodyPointScale = bodyProgram.uniformLocation("uPointScale")
-        uBodyMaxPointSize = bodyProgram.uniformLocation("uMaxPointSize")
+        uBodyFocalPx = bodyProgram.uniformLocation("uFocalPx")
+        uBodyViewportPx = bodyProgram.uniformLocation("uViewportPx")
         uBodyMoonLight = bodyProgram.uniformLocation("uMoonLight")
-        uBodyMoonOccluder = bodyProgram.uniformLocation("uMoonOccluder")
         uBodyCameraMode = bodyProgram.uniformLocation("uCameraMode")
         uBodyNightMode = bodyProgram.uniformLocation("uNightMode")
 
@@ -212,7 +213,6 @@ class SkyRenderer(
         val range = FloatArray(2)
         GLES30.glGetFloatv(GLES30.GL_ALIASED_POINT_SIZE_RANGE, range, 0)
         maxPointSize = range[1]
-        inputs.maxPointSizePx = maxPointSize // lets taps use the sprite size actually drawn
 
         filter.reset()
         lastFrameNanos = 0L
@@ -252,10 +252,13 @@ class SkyRenderer(
         // Each pass enables the vertex arrays it uses; none may inherit another pass's, whose buffer may be smaller.
         for (attribute in 0..MAX_VERTEX_ATTRIBUTE) GLES30.glDisableVertexAttribArray(attribute)
         setBlending(OverlayBlend.stars(cameraMode))
+        // Over the camera the sky must keep up with the image, which is not smoothed at any zoom.
+        // On black, zooming in magnifies hand shake, so the filter smooths more (see SkyZoom).
+        val fovYDeg = inputs.fovYDeg
         filter.timeConstantSeconds = if (cameraMode) {
             OrientationFilter.CAMERA_TIME_CONSTANT_SECONDS
         } else {
-            OrientationFilter.DEFAULT_TIME_CONSTANT_SECONDS
+            SkyZoom.smoothingSeconds(fovYDeg, OrientationFilter.DEFAULT_TIME_CONSTANT_SECONDS)
         }
 
         val now = System.nanoTime()
@@ -268,7 +271,6 @@ class SkyRenderer(
 
         if (vertices !== uploadedVertices) upload(vertices)
 
-        val fovYDeg = inputs.fovYDeg
         val smoothed = filter.update(rawOrientation, dtSeconds)
         val lstDeg = AstroTime.localSiderealTimeDeg(
             AstroTime.julianDate(System.currentTimeMillis()), observer.longitudeDeg,
@@ -303,7 +305,7 @@ class SkyRenderer(
         // The constellation illustrations: a backdrop, under every line and point.
         val artMesh = inputs.constellationArtMesh
         val artImages = inputs.constellationArtImages
-        if (artMesh != null && artImages != null) drawConstellationArt(artMesh, artImages, cameraMode, cameraModeUniform)
+        if (artMesh != null && artImages != null) drawConstellationArt(artMesh, artImages, fovYDeg, cameraMode, cameraModeUniform)
 
         // The horizon and grid next.
         drawGuides(cameraModeUniform, inputs.showHorizon, inputs.showGrid)
@@ -385,13 +387,22 @@ class SkyRenderer(
     /**
      * The illustrations (at [ConstellationArtAppearance.GAIN], none while switched off) and the selected
      * constellation's (at [ConstellationArtAppearance.HIGHLIGHT_GAIN], whatever the switch says), with
-     * the blending of the stars. Textures go up a few per frame, so the art fills in over the first
-     * frames rather than holding up one.
+     * the blending of the stars, faded out as the view zooms in past what their resolution allows
+     * ([ConstellationArtAppearance.zoomFade]). Textures go up a few per frame, so the art fills in over
+     * the first frames rather than holding up one.
      */
-    private fun drawConstellationArt(mesh: ConstellationArtMesh, images: List<ArtImage>, cameraMode: Boolean, cameraModeUniform: Float) {
+    private fun drawConstellationArt(
+        mesh: ConstellationArtMesh,
+        images: List<ArtImage>,
+        fovYDeg: Double,
+        cameraMode: Boolean,
+        cameraModeUniform: Float,
+    ) {
         val showAll = inputs.showConstellationArt
         val highlight = inputs.highlightedArtImage
         if (!showAll && highlight < 0) return
+        val zoomFade = ConstellationArtAppearance.zoomFade(fovYDeg)
+        if (zoomFade <= 0f) return
         if (mesh !== uploadedArtMesh) uploadArtMesh(mesh)
         if (images !== uploadedArtImages) replaceArtTextures(images)
         uploadArtTextures(images)
@@ -419,7 +430,7 @@ class SkyRenderer(
         )
         GLES30.glBindBuffer(GLES30.GL_ELEMENT_ARRAY_BUFFER, artIbo)
         val tint = ConstellationArtAppearance.TINT
-        val viewGain = if (cameraMode) ConstellationArtAppearance.CAMERA_GAIN else 1f
+        val viewGain = zoomFade * if (cameraMode) ConstellationArtAppearance.CAMERA_GAIN else 1f
         for (i in 0 until count) {
             val lit = i == highlight
             if (!showAll && !lit) continue
@@ -562,40 +573,45 @@ class SkyRenderer(
         guidesUploaded = true
     }
 
-    /** Sun, Moon and planets over the stars. */
+    /**
+     * Sun, Moon, planets and the planets' moons over the stars, as quads the vertex shader sizes from the
+     * focal length: nominal sprites at the default field of view, true-size discs when zoomed in, moons
+     * faded in once clear of their planet (see [BodyShaders]).
+     */
     private fun drawBodies(mvp: Matrix4, fovYDeg: Double, cameraModeUniform: Float) {
         if (bodyCount == 0) return
         bodyProgram.use()
         GLES30.glUniformMatrix4fv(uBodyMvp, 1, false, mvpFloats, 0)
         GLES30.glUniform1f(uBodyPointScale, pointScale)
-        GLES30.glUniform1f(uBodyMaxPointSize, maxPointSize)
+        GLES30.glUniform1f(uBodyFocalPx, ((viewportHeight / 2.0) / tan(Math.toRadians(fovYDeg / 2))).toFloat())
+        GLES30.glUniform2f(uBodyViewportPx, viewportWidth.toFloat(), viewportHeight.toFloat())
         GLES30.glUniform1f(uBodyCameraMode, cameraModeUniform)
         GLES30.glUniform1f(uBodyNightMode, nightModeUniform)
-        setMoonUniforms(mvp, fovYDeg)
+        setMoonLight(mvp)
 
         GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER, bodyVbo)
         bindBodyAttribute(BodyShaders.ATTRIB_POSITION, 3, BodyVertices.POSITION_OFFSET)
+        bindBodyAttribute(BodyShaders.ATTRIB_CORNER, 2, BodyVertices.CORNER_OFFSET)
         bindBodyAttribute(BodyShaders.ATTRIB_SIZE, 1, BodyVertices.SIZE_OFFSET)
+        bindBodyAttribute(BodyShaders.ATTRIB_TRUE_RADIUS, 1, BodyVertices.TRUE_RADIUS_OFFSET)
         bindBodyAttribute(BodyShaders.ATTRIB_COLOR, 3, BodyVertices.COLOR_OFFSET)
         bindBodyAttribute(BodyShaders.ATTRIB_KIND, 1, BodyVertices.KIND_OFFSET)
+        bindBodyAttribute(BodyShaders.ATTRIB_SEPARATION, 1, BodyVertices.SEPARATION_OFFSET)
 
         // Premultiplied "over": in the enhanced view glows (alpha 0) still add, while the Moon's
         // disc (alpha 1) hides the stars behind it.
         setBlending(OverlayBlend.bodies())
-        GLES30.glDrawArrays(GLES30.GL_POINTS, 0, bodyCount)
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES, 0, bodyCount * BodyVertices.VERTICES_PER_BODY)
 
         // These arrays point into the small body buffer. The line pass of the next frame does not
         // read them, and must not be left with enabled arrays that run past the end of their buffer.
-        for (attribute in BodyShaders.ATTRIB_POSITION..BodyShaders.ATTRIB_KIND) {
+        for (attribute in BodyShaders.ATTRIB_POSITION..BodyShaders.ATTRIB_SEPARATION) {
             GLES30.glDisableVertexAttribArray(attribute)
         }
     }
 
-    /**
-     * The Moon's lit side in its sprite frame, and how much of its drawn disc is opaque. The
-     * drawn disc is enlarged; only the true angular radius (a few dp) may hide what is behind.
-     */
-    private fun setMoonUniforms(mvp: Matrix4, fovYDeg: Double) {
+    /** The Moon's lit side in its quad's frame (screen right, up, toward the viewer). */
+    private fun setMoonLight(mvp: Matrix4) {
         val moon = moonDirection
         val sun = moonSunDirection
         // Out of view or unknown: any value will do, since nothing of the Moon is drawn then.
@@ -605,13 +621,6 @@ class SkyRenderer(
             null
         }) ?: Vector3(0.0, 0.0, 1.0)
         GLES30.glUniform3f(uBodyMoonLight, light.x.toFloat(), light.y.toFloat(), light.z.toFloat())
-
-        val focalPx = (viewportHeight / 2.0) / tan(Math.toRadians(fovYDeg / 2))
-        val trueRadiusPx = tan(Math.toRadians(BodyAppearance.MOON_TRUE_RADIUS_DEG)) * focalPx
-        val drawnSpritePx = min(BodyAppearance.MOON_SPRITE_DP * pointScale, maxPointSize)
-        val drawnDiscRadiusPx = drawnSpritePx / 2.0 * BodyAppearance.MOON_DISC_FRACTION
-        val occluder = (trueRadiusPx / drawnDiscRadiusPx).coerceIn(MIN_MOON_OCCLUDER, 1.0)
-        GLES30.glUniform1f(uBodyMoonOccluder, occluder.toFloat())
     }
 
     private fun uploadBodies(bodies: FloatArray) {
@@ -622,7 +631,7 @@ class SkyRenderer(
         moonDirection = null
         moonSunDirection = null
         for (i in 0 until bodyCount) {
-            val base = i * BodyVertices.FLOATS_PER_BODY
+            val base = i * BodyVertices.FLOATS_PER_BODY // the body's first vertex; all six carry the same values
             if (bodies[base + BodyVertices.KIND_OFFSET] == BodyAppearance.KIND_MOON) {
                 moonDirection = readVector(bodies, base + BodyVertices.POSITION_OFFSET)
                 moonSunDirection = readVector(bodies, base + BodyVertices.SUN_DIRECTION_OFFSET)
@@ -637,7 +646,7 @@ class SkyRenderer(
         GLES30.glEnableVertexAttribArray(location)
         GLES30.glVertexAttribPointer(
             location, size, GLES30.GL_FLOAT, false,
-            BodyVertices.FLOATS_PER_BODY * Float.SIZE_BYTES, offsetFloats * Float.SIZE_BYTES,
+            BodyVertices.FLOATS_PER_VERTEX * Float.SIZE_BYTES, offsetFloats * Float.SIZE_BYTES,
         )
     }
 
@@ -702,11 +711,8 @@ class SkyRenderer(
     }
 
     private companion object {
-        /** The highest vertex attribute slot any pass uses (the deep-sky pass uses 0 to 6). */
+        /** The highest vertex attribute slot any pass uses (the deep-sky and body passes use 0 to 6). */
         const val MAX_VERTEX_ATTRIBUTE = 6
-
-        /** Keeps the shader's smoothstep well defined if the Moon would be vanishingly small. */
-        const val MIN_MOON_OCCLUDER = 0.05
 
         /** Illustrations uploaded per frame: 8 of at most 512 x 512 bytes is 2 MB, a few milliseconds. */
         const val ART_TEXTURES_PER_FRAME = 8

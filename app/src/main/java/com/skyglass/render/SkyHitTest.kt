@@ -1,6 +1,7 @@
 package com.skyglass.render
 
 import com.skyglass.astro.BodyPosition
+import com.skyglass.astro.PlanetMoonPosition
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.DeepSkyAppearance
 import com.skyglass.catalog.DeepSkyGeometry
@@ -26,6 +27,9 @@ data class BodyHit(val index: Int, val distancePx: Double, val onTarget: Boolean
 
 /** A deep-sky object near the finger: its index in the object list and its distance from the tap; [onTarget] inside its drawn ellipse. */
 data class DeepSkyHit(val index: Int, val distancePx: Double, val onTarget: Boolean = false)
+
+/** A planet's moon near the finger: its index in the moon list and its distance from the tap; [onTarget] on its drawn disc. */
+data class MoonHit(val index: Int, val distancePx: Double, val onTarget: Boolean = false)
 
 /** Maps a screen tap to the star the user most plausibly meant. */
 object SkyHitTest {
@@ -95,11 +99,10 @@ object SkyHitTest {
 
     /**
      * Finds the Sun, Moon or planet nearest to the tap, with the same reach rule as
-     * [nearestStar] but using each body's drawn sprite, which is large for the Sun and Moon.
+     * [nearestStar] but using each body's drawn sprite, which is large for the Sun and Moon and grows
+     * to the true size when zoomed in ([BodyAppearance.drawn], from the focal length of [mvp]).
      *
      * @param density pixels per dp
-     * @param maxSpriteSizePx the largest sprite the GPU draws (`GL_ALIASED_POINT_SIZE_RANGE`); a
-     *   sprite drawn smaller than its nominal size is hit only across the smaller size
      */
     fun nearestBody(
         mvp: Matrix4,
@@ -109,12 +112,11 @@ object SkyHitTest {
         tapX: Double,
         tapY: Double,
         density: Float,
-        maxSpriteSizePx: Float = Float.MAX_VALUE,
-    ): BodyHit? = bodiesAt(mvp, bodies, widthPx, heightPx, tapX, tapY, density, maxSpriteSizePx).firstOrNull()
+    ): BodyHit? = bodiesAt(mvp, bodies, widthPx, heightPx, tapX, tapY, density).firstOrNull()
 
     /**
-     * Every body [nearestBody] would consider, nearest first. On target within its drawn disc plus
-     * [ON_TARGET_SLACK_DP], not its whole sprite: the Sun's glow is far bigger than its disc.
+     * Every body [nearestBody] would consider, nearest first. On target within its solid-looking disc
+     * plus [ON_TARGET_SLACK_DP], not its whole sprite: the Sun's glow is far bigger than its disc.
      */
     fun bodiesAt(
         mvp: Matrix4,
@@ -124,17 +126,46 @@ object SkyHitTest {
         tapX: Double,
         tapY: Double,
         density: Float,
-        maxSpriteSizePx: Float = Float.MAX_VALUE,
     ): List<BodyHit> {
         val minRadiusPx = MIN_TAP_RADIUS_DP * density
+        val focalPx = SkyViewMath.focalLengthPx(mvp, heightPx)
         val hits = ArrayList<BodyHit>()
         for ((i, body) in bodies.withIndex()) {
             val p = SkyProjection.project(mvp, body.direction, widthPx, heightPx) ?: continue
             val distance = hypot(p.x - tapX, p.y - tapY)
-            val spriteRadiusPx = min(BodyAppearance.spriteSizeDp(body) * density, maxSpriteSizePx) / 2.0
-            if (distance > max(minRadiusPx, spriteRadiusPx)) continue
-            val onTargetPx = (BodyAppearance.discRadiusDp(body) + ON_TARGET_SLACK_DP) * density
+            val drawn = BodyAppearance.drawn(body, focalPx, density)
+            if (distance > max(minRadiusPx, drawn.spriteRadiusPx)) continue
+            val onTargetPx = drawn.labelRadiusPx + ON_TARGET_SLACK_DP * density
             hits += BodyHit(i, distance, onTarget = distance <= onTargetPx)
+        }
+        hits.sortBy { it.distancePx }
+        return hits
+    }
+
+    /**
+     * The planets' moons within reach of the tap, nearest first, with the reach rule of [bodiesAt]. Only
+     * those drawn count: one behind its planet, or not yet faded in at least halfway
+     * ([BodyAppearance.satelliteFade], from the focal length of [mvp]), is not there to tap.
+     */
+    fun moonsAt(
+        mvp: Matrix4,
+        moons: List<PlanetMoonPosition>,
+        widthPx: Int,
+        heightPx: Int,
+        tapX: Double,
+        tapY: Double,
+        density: Float,
+    ): List<MoonHit> {
+        val minRadiusPx = MIN_TAP_RADIUS_DP * density
+        val focalPx = SkyViewMath.focalLengthPx(mvp, heightPx)
+        val hits = ArrayList<MoonHit>()
+        for ((i, moon) in moons.withIndex()) {
+            if (moon.hidden || BodyAppearance.satelliteFade(moon.separationTan, focalPx, density) < 0.5f) continue
+            val p = SkyProjection.project(mvp, moon.direction, widthPx, heightPx) ?: continue
+            val distance = hypot(p.x - tapX, p.y - tapY)
+            val drawn = BodyAppearance.drawn(moon, density)
+            if (distance > max(minRadiusPx, drawn.spriteRadiusPx)) continue
+            hits += MoonHit(i, distance, onTarget = distance <= drawn.labelRadiusPx + ON_TARGET_SLACK_DP * density)
         }
         hits.sortBy { it.distancePx }
         return hits

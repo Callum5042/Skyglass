@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.skyglass.R
 import com.skyglass.astro.BodyPosition
+import com.skyglass.astro.PlanetMoonPosition
 import com.skyglass.astro.SkyPlacement
 import com.skyglass.catalog.NavigationTarget
 import com.skyglass.catalog.SearchKind
@@ -206,6 +207,7 @@ internal fun ResultRow(result: SearchResult, onClick: () -> Unit) {
 fun NavigationBanner(
     navigation: NavigationTarget,
     bodies: List<BodyPosition>,
+    moons: List<PlanetMoonPosition>,
     observer: Observer?,
     julianDate: Double?,
     limitingMagnitude: Double,
@@ -214,7 +216,7 @@ fun NavigationBanner(
     modifier: Modifier = Modifier,
 ) {
     val title = navigation.result.title
-    val direction = navigation.directionIn(bodies)
+    val direction = navigation.directionIn(bodies, moons)
     val placement = remember(direction, observer, julianDate) {
         if (direction != null && observer != null && julianDate != null) {
             SkyPlacement.of(direction, julianDate, observer.latitudeDeg, observer.longitudeDeg)

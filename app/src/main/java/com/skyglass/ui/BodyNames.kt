@@ -4,6 +4,8 @@ import androidx.annotation.StringRes
 import com.skyglass.R
 import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.MoonPhase
+import com.skyglass.astro.PlanetMoon
+import com.skyglass.astro.SkySide
 import com.skyglass.astro.SkyBody
 import com.skyglass.catalog.DeepSkyType
 import com.skyglass.catalog.SearchKind
@@ -21,6 +23,31 @@ fun SkyBody.nameRes(): Int = when (this) {
     SkyBody.SATURN -> R.string.body_saturn
     SkyBody.URANUS -> R.string.body_uranus
     SkyBody.NEPTUNE -> R.string.body_neptune
+}
+
+@StringRes
+fun PlanetMoon.nameRes(): Int = when (this) {
+    PlanetMoon.IO -> R.string.moon_io
+    PlanetMoon.EUROPA -> R.string.moon_europa
+    PlanetMoon.GANYMEDE -> R.string.moon_ganymede
+    PlanetMoon.CALLISTO -> R.string.moon_callisto
+    PlanetMoon.MIMAS -> R.string.moon_mimas
+    PlanetMoon.ENCELADUS -> R.string.moon_enceladus
+    PlanetMoon.TETHYS -> R.string.moon_tethys
+    PlanetMoon.DIONE -> R.string.moon_dione
+    PlanetMoon.RHEA -> R.string.moon_rhea
+    PlanetMoon.TITAN -> R.string.moon_titan
+    PlanetMoon.HYPERION -> R.string.moon_hyperion
+    PlanetMoon.IAPETUS -> R.string.moon_iapetus
+}
+
+/** "%1$s west" and so on, for an angle on the sky in a given direction. */
+@StringRes
+fun SkySide.offsetRes(): Int = when (this) {
+    SkySide.NORTH -> R.string.moon_side_north
+    SkySide.EAST -> R.string.moon_side_east
+    SkySide.SOUTH -> R.string.moon_side_south
+    SkySide.WEST -> R.string.moon_side_west
 }
 
 @StringRes

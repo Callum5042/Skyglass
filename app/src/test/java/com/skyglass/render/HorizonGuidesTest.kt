@@ -313,4 +313,26 @@ class HorizonGuidesTest {
             Coordinates.equatorialToEnuMatrix(rad(lstDeg), rad(latDeg))
         for (i in 0..2) for (j in 0..2) assertEquals("[$i,$j]", full[i, j], composed[i, j], 1e-15)
     }
+
+    @Test
+    fun theLettersSitTheSameDistanceAboveTheLine_atAnyZoom_inEveryDisplayRotation() {
+        val density = 3f
+        for (rotation in 0..3) for (fov in listOf(1.0, 60.0, 90.0)) {
+            val q = sensor(pointingAt(0.0, 0.0, rotation))
+            val mvp = SkyViewMath.horizonModelViewProjection(q, declinationDeg, rotation, fov, aspect)
+            val focalPx = (height / 2.0) / tan(rad(fov / 2))
+            val raise = CompassLabels.anchorAltitudeDeg(focalPx, density)
+            val placed = CompassLabels.place(mvp, width, height, anchorAltitudeDeg = raise).first { it.point == CompassPoint.N }
+            val onLine = checkNotNull(SkyProjection.project(mvp, CompassLabels.horizonDirection(CompassPoint.N), width, height))
+            assertEquals("rotation $rotation fov $fov", width / 2.0, placed.position.x, 1e-6)
+            assertEquals("rotation $rotation fov $fov", CompassLabels.ANCHOR_RAISE_DP * density, onLine.y - placed.position.y, 1e-6)
+        }
+    }
+
+    @Test
+    fun atTheDefaultView_theRaiseIsAboutADegree() {
+        // On a 2340 px tall phone at 3x the 13 dp raise is close to the degree the letters always sat at.
+        val focalPx = (height / 2.0) / tan(rad(fovYDeg / 2))
+        assertEquals(CompassLabels.ANCHOR_ALTITUDE_DEG, CompassLabels.anchorAltitudeDeg(focalPx, 3f), 0.15)
+    }
 }

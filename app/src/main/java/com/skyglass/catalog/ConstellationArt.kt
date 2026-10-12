@@ -216,4 +216,19 @@ object ConstellationArtAppearance {
 
     /** Width of the fade at each image edge, as a fraction of the image, so art that runs to the edge has no hard cut. */
     const val EDGE_FADE = 0.04f
+
+    /**
+     * Zoomed in, the art fades out between these vertical fields of view (full strength at the first,
+     * gone at the second). The images have about 10 to 20 pixels per degree, already magnified a
+     * little at the default 60°; beyond a few times that they are blurred outlines over a part of a
+     * figure, not a picture of it.
+     */
+    const val ZOOM_FADE_FULL_FOV_DEG = 25.0
+    const val ZOOM_FADE_GONE_FOV_DEG = 10.0
+
+    /** The art's strength at a vertical field of view of [fovYDeg], from 1 (zoomed out) to 0 (zoomed in); see [ZOOM_FADE_FULL_FOV_DEG]. */
+    fun zoomFade(fovYDeg: Double): Float {
+        val t = ((fovYDeg - ZOOM_FADE_GONE_FOV_DEG) / (ZOOM_FADE_FULL_FOV_DEG - ZOOM_FADE_GONE_FOV_DEG)).coerceIn(0.0, 1.0)
+        return (t * t * (3 - 2 * t)).toFloat()
+    }
 }

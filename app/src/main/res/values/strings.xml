@@ -22,6 +22,27 @@
     <string name="body_uranus">Uranus</string>
     <string name="body_neptune">Neptune</string>
 
+    <string name="moon_io">Io</string>
+    <string name="moon_europa">Europa</string>
+    <string name="moon_ganymede">Ganymede</string>
+    <string name="moon_callisto">Callisto</string>
+    <string name="moon_mimas">Mimas</string>
+    <string name="moon_enceladus">Enceladus</string>
+    <string name="moon_tethys">Tethys</string>
+    <string name="moon_dione">Dione</string>
+    <string name="moon_rhea">Rhea</string>
+    <string name="moon_titan">Titan</string>
+    <string name="moon_hyperion">Hyperion</string>
+    <string name="moon_iapetus">Iapetus</string>
+    <string name="moon_of_planet">Moon of %1$s</string>
+    <string name="moon_zoom_hint">Pinch to zoom in</string>
+    <string name="detail_label_from_planet">From %1$s</string>
+    <string name="moon_side_north">%1$s north</string>
+    <string name="moon_side_south">%1$s south</string>
+    <string name="moon_side_east">%1$s east</string>
+    <string name="moon_side_west">%1$s west</string>
+    <string name="moon_behind_planet">behind the planet</string>
+
     <string name="moon_phase_new">New Moon</string>
     <string name="moon_phase_waxing_crescent">Waxing crescent</string>
     <string name="moon_phase_first_quarter">First quarter</string>
@@ -120,6 +141,11 @@
     <string name="status_camera_unsupported">The camera view isn’t supported on this device. Showing the enhanced sky.</string>
     <string name="status_camera_waiting">Waiting for the camera. It may be in use by another app.</string>
     <string name="action_open_settings">Open settings</string>
+
+    <string name="zoom_value_decimal">Zoom %1$.1f×</string>
+    <string name="zoom_value_whole">Zoom %1$d×</string>
+    <string name="zoom_reset">Reset</string>
+    <string name="zoom_reset_description">Reset zoom to 1×</string>
 
     <string name="star_limit_toggle_label">Display</string>
     <string name="star_limit_toggle_open">Display settings shown</string>

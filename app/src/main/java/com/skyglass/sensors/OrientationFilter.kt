@@ -40,8 +40,9 @@ class OrientationFilter(var timeConstantSeconds: Double = DEFAULT_TIME_CONSTANT_
          * Over a live camera image, filter lag shows as the sky trailing the stars while panning
          * (an exponential filter lags a steady turn by exactly its time constant). But the preview
          * itself is typically tens of milliseconds behind the world, so no lag at all would make
-         * the sky lead it, and less smoothing shows more sensor jitter. This is a compromise
-         * between the two that has NOT been tuned on a device; pan across a bright star and adjust.
+         * the sky lead it, and less smoothing shows more sensor jitter; this is a compromise between
+         * the two. Unlike the enhanced view's, it does not grow with the zoom: the camera image is
+         * not smoothed, and the sky must stay on it.
          */
         const val CAMERA_TIME_CONSTANT_SECONDS = 0.05
     }

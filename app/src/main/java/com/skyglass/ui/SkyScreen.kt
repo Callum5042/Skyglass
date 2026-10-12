@@ -71,8 +71,10 @@ import com.skyglass.catalog.Bortle
 import com.skyglass.catalog.StarVisibility
 import com.skyglass.render.NavInsets
 import com.skyglass.render.SkyRenderer
+import com.skyglass.render.SkyZoom
 import kotlinx.coroutines.delay
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 private const val CAMERA_PERMISSION = Manifest.permission.CAMERA
 
@@ -102,6 +104,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val context = LocalContext.current
     var hasLocationPermission by remember { mutableStateOf(viewModel.hasLocationPermission()) }
     val selectedBody = state.selectedBody?.let { id -> state.bodies.firstOrNull { it.body == id } }
+    val selectedMoon = state.selectedMoon?.let { id -> state.moons.firstOrNull { it.moon == id } }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -131,7 +134,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val layoutDirection = LocalLayoutDirection.current
     val safeDrawing = WindowInsets.safeDrawing
     val infoCardShowing = !searchOpen &&
-        (state.selectedStar != null || selectedBody != null || state.selectedDeepSky != null || state.selectedConstellation != null)
+        (state.selectedStar != null || selectedBody != null || selectedMoon != null || state.selectedDeepSky != null ||
+            state.selectedConstellation != null)
     val navigationInsets = with(localDensity) {
         val margin = NavigationArrowMargin.toPx()
         val controlsBottom = safeDrawing.getTop(localDensity) + (ScreenMargin + TopControlsHeight).toPx()
@@ -197,7 +201,9 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
         // Behind the GL surface, which is translucent and cleared to transparent in camera mode.
         if (state.viewMode == ViewMode.CAMERA) {
             CameraPreviewLayer(
+                zoomRatio = state.cameraZoomRatio,
                 onFieldOfView = viewModel::onCameraFieldOfView,
+                onZoomRange = viewModel::onCameraZoomRange,
                 onProblem = { viewModel.onCameraProblem(CameraProblem.UNAVAILABLE) },
                 onWaiting = viewModel::onCameraWaiting,
                 onUnsupported = { viewModel.onCameraProblem(CameraProblem.UNSUPPORTED) },
@@ -215,6 +221,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     bodies = state.bodies,
                     selectedStar = state.selectedStar,
                     selectedBody = selectedBody,
+                    moons = state.moons,
+                    selectedMoon = selectedMoon,
                     deepSkyLabels = state.deepSkyLabels,
                     selectedDeepSky = state.selectedDeepSky,
                     showDeepSky = state.showDeepSky,
@@ -224,6 +232,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     navigationInsets = navigationInsets,
                     showHorizon = state.showHorizon,
                     onTap = { x, y, width, height, labelSizes -> viewModel.onSkyTapped(x, y, width, height, density, labelSizes) },
+                    onPinch = viewModel::onPinch,
                     modifier = Modifier.fillMaxSize(),
                 )
                 // A popup, so it sits above everything; anchored in this box, which the overlay fills, at the tap.
@@ -304,6 +313,25 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
+                selectedMoon?.takeIf { !searchOpen }?.let { moon ->
+                    PlanetMoonInfoCard(
+                        position = moon,
+                        planet = state.bodies.firstOrNull { it.body == moon.moon.planet },
+                        image = state.objectImages.forMoon(moon.moon),
+                        observer = state.observer,
+                        julianDate = state.julianDate,
+                        riseSet = state.riseSet,
+                        expanded = detailsExpanded,
+                        onToggleExpanded = { detailsExpanded = !detailsExpanded },
+                        onDismiss = viewModel::clearSelection,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .safeDrawingPadding()
+                            .padding(ScreenMargin)
+                            .padding(top = TopControlsHeight)
+                            .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
+                    )
+                }
                 if (searchOpen) {
                     SearchPanel(
                         search = viewModel::search,
@@ -351,10 +379,14 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    if (SkyZoom.isZoomed(state.zoom)) {
+                        ZoomChip(zoom = state.zoom, onReset = viewModel::resetZoom)
+                    }
                     state.navigation?.let { navigation ->
                         NavigationBanner(
                             navigation = navigation,
                             bodies = state.bodies,
+                            moons = state.moons,
                             observer = state.observer,
                             julianDate = state.julianDate,
                             limitingMagnitude = state.limitingMagnitude,
@@ -553,6 +585,32 @@ private fun CameraToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, m
             style = MaterialTheme.typography.labelLarge,
         )
         Switch(checked = checked, onCheckedChange = null)
+    }
+}
+
+/**
+ * Shown while the view is zoomed (pinch to zoom; see `SkyZoom`): how far, and a tap to go back to 1×.
+ * At least 48 dp tall, like the other controls.
+ */
+@Composable
+private fun ZoomChip(zoom: Double, onReset: () -> Unit, modifier: Modifier = Modifier) {
+    val value = if (zoom < 10.0) {
+        stringResource(R.string.zoom_value_decimal, zoom)
+    } else {
+        stringResource(R.string.zoom_value_whole, zoom.roundToInt())
+    }
+    val resetDescription = stringResource(R.string.zoom_reset_description)
+    Row(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .background(CardBackground, RoundedCornerShape(24.dp))
+            .clickable(role = Role.Button, onClickLabel = resetDescription, onClick = onReset)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(text = value, color = StatusTextColor, style = MaterialTheme.typography.labelLarge)
+        Text(text = stringResource(R.string.zoom_reset), color = ActiveTextColor, style = MaterialTheme.typography.labelLarge)
     }
 }
 

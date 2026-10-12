@@ -5,6 +5,7 @@ import com.skyglass.astro.Coordinates
 import com.skyglass.astro.Horizontal
 import com.skyglass.math.Matrix4
 import com.skyglass.math.Vector3
+import kotlin.math.atan
 
 /**
  * The horizon line, the altitude/azimuth reference grid and the compass points, all fixed to the
@@ -18,8 +19,12 @@ object HorizonGuides {
 
     const val FLOATS_PER_VERTEX = 3
 
-    /** Chord length of the sampled circles. A chord of a unit circle projects to a straight line, so this only has to be fine enough to look round. */
-    private const val SAMPLE_STEP_DEG = 2.0
+    /**
+     * Chord length of the sampled circles. A chord of a unit circle projects to a straight line, so this
+     * only has to be fine enough to look round at the deepest zoom (the 30° circle's chords then bow by
+     * about a pixel; the horizon is a great circle and exact at any step).
+     */
+    private const val SAMPLE_STEP_DEG = 0.5
 
     /** Altitude circles of the grid, in degrees above the horizon. */
     val ALTITUDE_CIRCLES_DEG: List<Double> = listOf(30.0, 60.0)
@@ -45,7 +50,7 @@ object HorizonGuides {
      */
     class Geometry(val horizon: FloatArray, val grid: FloatArray)
 
-    /** Builds the geometry. Cheap (a few hundred segments), pure and deterministic. */
+    /** Builds the geometry. Cheap (a few thousand segments), pure and deterministic. */
     fun build(): Geometry {
         val horizon = ArrayList<Float>()
         circleAtAltitude(0.0, horizon)
@@ -100,21 +105,30 @@ object HorizonGuides {
 data class PlacedCompassPoint(val point: CompassPoint, val position: ScreenPoint)
 
 /**
- * Where the compass letters go. Each sits on the horizon at its azimuth, raised by
- * [ANCHOR_ALTITUDE_DEG] so the text rests just above the line instead of being struck through by it.
- * (Raising it by degrees of sky rather than pixels keeps "above" meaning "toward the zenith" when
- * the phone is rolled, in any display rotation.)
+ * Where the compass letters go. Each sits on the horizon at its azimuth, raised by a small altitude
+ * so the text rests just above the line instead of being struck through by it. (Raising it by
+ * degrees of sky rather than pixels keeps "above" meaning "toward the zenith" when the phone is
+ * rolled, in any display rotation.) The altitude is chosen per frame, [anchorAltitudeDeg], so the
+ * gap stays [ANCHOR_RAISE_DP] on screen at any zoom.
  */
 object CompassLabels {
 
-    /** About 13 dp at the default 60° field of view on a tall phone. */
+    /** The raise at the default 60° field of view on a tall phone, about [ANCHOR_RAISE_DP]. */
     const val ANCHOR_ALTITUDE_DEG = 1.0
+
+    /** How far above the horizon line the letters' centres sit, on screen. */
+    const val ANCHOR_RAISE_DP = 13.0
 
     /** The unit vector in true ENU of [point] on the horizon itself: N is +Y, E is +X, S is −Y, W is −X. */
     fun horizonDirection(point: CompassPoint): Vector3 = HorizonGuides.direction(0.0, point.azimuthDeg)
 
-    /** Where the text for [point] is anchored, in true ENU. */
-    fun anchorDirection(point: CompassPoint): Vector3 = HorizonGuides.direction(ANCHOR_ALTITUDE_DEG, point.azimuthDeg)
+    /** Where the text for [point] is anchored, in true ENU, [altitudeDeg] above the horizon. */
+    fun anchorDirection(point: CompassPoint, altitudeDeg: Double = ANCHOR_ALTITUDE_DEG): Vector3 =
+        HorizonGuides.direction(altitudeDeg, point.azimuthDeg)
+
+    /** The altitude that puts the letters [ANCHOR_RAISE_DP] above the horizon line in a view of [focalPx] focal length. */
+    fun anchorAltitudeDeg(focalPx: Double, density: Float): Double =
+        Math.toDegrees(atan(ANCHOR_RAISE_DP * density / focalPx))
 
     /**
      * The compass points to draw for a view described by [horizonMvp] (true ENU → clip, see
@@ -123,9 +137,16 @@ object CompassLabels {
      * instant its centre crosses the edge. A point behind the viewer is never returned, however
      * close its mirrored position would land to the screen.
      */
-    fun place(horizonMvp: Matrix4, widthPx: Int, heightPx: Int, marginPx: Double = 0.0): List<PlacedCompassPoint> =
+    fun place(
+        horizonMvp: Matrix4,
+        widthPx: Int,
+        heightPx: Int,
+        marginPx: Double = 0.0,
+        anchorAltitudeDeg: Double = ANCHOR_ALTITUDE_DEG,
+    ): List<PlacedCompassPoint> =
         CompassPoint.entries.mapNotNull { point ->
-            val screen = SkyProjection.project(horizonMvp, anchorDirection(point), widthPx, heightPx) ?: return@mapNotNull null
+            val screen = SkyProjection.project(horizonMvp, anchorDirection(point, anchorAltitudeDeg), widthPx, heightPx)
+                ?: return@mapNotNull null
             if (SkyProjection.isOnScreen(screen, widthPx, heightPx, marginPx)) PlacedCompassPoint(point, screen) else null
         }
 }

@@ -8,6 +8,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.tan
 
 class SkyHitTestTest {
 
@@ -216,14 +217,17 @@ class SkyHitTestBodiesTest {
     }
 
     @Test
-    fun aSpriteDrawnSmallerThanNominal_isHitOnlyAcrossWhatIsDrawn() {
-        val sun = body(com.skyglass.astro.SkyBody.SUN, centre, -26.7)
-        val p = screenOf(centre)
-        // Nominal radius is 108 px at 3x, but the GPU draws at most 100 px across, i.e. 50 px radius.
-        // The 24 dp (72 px) minimum reach still applies, so use a point beyond both.
-        val tap = p.y + 80
-        assertNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, tap, density))
-        assertNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, tap, density, maxSpriteSizePx = 100f))
+    fun zoomedIn_theMoonIsHitAndOnTargetAcrossItsTrueDisc() {
+        // At 384 400 km the Moon's radius is 0.259° (Meeus ch. 55: 358 473 400 / Δ arcseconds), so in a
+        // 1° field of view on a 2160 px screen it is about 560 px.
+        val moon = body(com.skyglass.astro.SkyBody.MOON, centre, -12.7).copy(distanceAu = 384_400.0 / 149_597_870.7)
+        val zoomed = Matrix4.perspective(1.0, width.toDouble() / height, SkyViewMath.NEAR, SkyViewMath.FAR)
+        val trueRadiusPx = tan(Math.toRadians(358_473_400.0 / 384_400.0 / 3600.0)) * (height / 2.0) / tan(Math.toRadians(0.5))
+        val tapY = height / 2.0 + 0.9 * trueRadiusPx
+        val hit = checkNotNull(SkyHitTest.nearestBody(zoomed, listOf(moon), width, height, width / 2.0, tapY, density))
+        assertTrue("on the disc", hit.onTarget)
+        // At the default view the same tap is far outside the Moon's 60 px sprite.
+        assertNull(SkyHitTest.nearestBody(mvp, listOf(moon), width, height, width / 2.0, tapY, density))
     }
 
     @Test
@@ -236,5 +240,26 @@ class SkyHitTestBodiesTest {
         assertTrue(checkNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, p.y + discPx - 1, density)).onTarget)
         val inGlow = checkNotNull(SkyHitTest.nearestBody(mvp, listOf(sun), width, height, p.x, p.y + glowRadiusPx - 5, density))
         assertTrue("hit, but not on target", !inGlow.onTarget)
+    }
+
+    private fun moonAt(direction: Vector3, separationTan: Double, hidden: Boolean = false) = com.skyglass.astro.PlanetMoonPosition(
+        moon = com.skyglass.astro.PlanetMoon.IO,
+        direction = direction.normalized(),
+        vmag = 5.0,
+        offset = com.skyglass.astro.PlanetMoonOffset(com.skyglass.astro.PlanetMoon.IO, 5.0, 0.0, behind = hidden),
+        hidden = hidden,
+        separationTan = separationTan,
+    )
+
+    @Test
+    fun aMoonIsTappableOnlyOnceItHasFadedIn_andNotBehindItsPlanet() {
+        val zoomed = Matrix4.perspective(1.0, width.toDouble() / height, SkyViewMath.NEAR, SkyViewMath.FAR)
+        val io = moonAt(centre, separationTan = Math.tan(Math.toRadians(2.3 / 60)))
+        val x = width / 2.0
+        val y = height / 2.0
+        val hit = SkyHitTest.moonsAt(zoomed, listOf(io), width, height, x, y, density).single()
+        assertTrue(hit.onTarget)
+        assertTrue("not drawn at the default view", SkyHitTest.moonsAt(mvp, listOf(io), width, height, x, y, density).isEmpty())
+        assertTrue("behind Jupiter", SkyHitTest.moonsAt(zoomed, listOf(moonAt(centre, 1e-3, hidden = true)), width, height, x, y, density).isEmpty())
     }
 }

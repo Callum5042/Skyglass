@@ -2,6 +2,7 @@ package com.skyglass.render
 
 import kotlin.math.atan
 import kotlin.math.max
+import kotlin.math.tan
 
 /**
  * The part of a camera sensor that records the scene, and the lens in front of it. Sizes are of
@@ -106,5 +107,17 @@ object CameraFov {
             verticalDeg = Math.toDegrees(2.0 * atan(viewHeightPx / (2.0 * focalPx))),
             horizontalDeg = Math.toDegrees(2.0 * atan(viewWidthPx / (2.0 * focalPx))),
         )
+    }
+
+    /**
+     * The field of view at a camera zoom ratio, from the one at 1×. Camera2 defines the ratio
+     * (`CONTROL_ZOOM_RATIO`, which CameraX's `setZoomRatio` sets) by the field of view: at 2× the view
+     * is cut to half the width and height of the 1× view, i.e. the focal length doubles, whichever
+     * physical lens a multi-camera switches to. A ratio below 1 (an ultra-wide lens) widens it.
+     */
+    fun zoomed(fov: CameraFieldOfView, zoomRatio: Double): CameraFieldOfView {
+        if (!(zoomRatio > 0.0)) return fov
+        fun narrow(deg: Double) = Math.toDegrees(2.0 * atan(tan(Math.toRadians(deg / 2)) / zoomRatio))
+        return CameraFieldOfView(verticalDeg = narrow(fov.verticalDeg), horizontalDeg = narrow(fov.horizontalDeg))
     }
 }

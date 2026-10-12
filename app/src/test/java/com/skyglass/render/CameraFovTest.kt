@@ -201,4 +201,27 @@ class CameraFovTest {
         val b = checkNotNull(SkyProjection.project(camera, d, viewW, viewH))
         assertTrue("enhanced ${a.x} vs camera ${b.x}", abs(a.x - b.x) > 100.0)
     }
+
+    @Test
+    fun zoomRatio_narrowsTheViewAsALongerLensWould() {
+        // At 10× a 70° view becomes 2 atan(tan 35° / 10) = 2 atan(0.0700208) = 2 × 4.00535° = 8.0107°.
+        val zoomed = CameraFov.zoomed(CameraFieldOfView(verticalDeg = 70.0, horizontalDeg = 36.0), 10.0)
+        assertEquals(8.0107, zoomed.verticalDeg, 1e-4)
+        assertEquals(tan(Math.toRadians(18.0)) / 10, tan(Math.toRadians(zoomed.horizontalDeg / 2)), 1e-12)
+    }
+
+    @Test
+    fun zoomRatioOne_changesNothing_andBelowOneWidens() {
+        val fov = CameraFieldOfView(verticalDeg = 70.0, horizontalDeg = 36.0)
+        assertEquals(fov.verticalDeg, CameraFov.zoomed(fov, 1.0).verticalDeg, 1e-12)
+        assertEquals(fov.horizontalDeg, CameraFov.zoomed(fov, 1.0).horizontalDeg, 1e-12)
+        // An ultra-wide lens at 0.6×.
+        assertEquals(tan(Math.toRadians(35.0)) / 0.6, tan(Math.toRadians(CameraFov.zoomed(fov, 0.6).verticalDeg / 2)), 1e-12)
+    }
+
+    @Test
+    fun aMeaninglessZoomRatio_changesNothing() {
+        val fov = CameraFieldOfView(verticalDeg = 70.0, horizontalDeg = 36.0)
+        for (ratio in listOf(0.0, -2.0, Double.NaN)) assertEquals("$ratio", fov, CameraFov.zoomed(fov, ratio))
+    }
 }

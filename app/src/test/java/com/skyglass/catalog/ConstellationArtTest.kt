@@ -291,4 +291,20 @@ class ConstellationArtTest {
             }
         }
     }
+
+    @Test
+    fun theArtFadesOutAsTheViewZoomsIn() {
+        assertEquals(1f, ConstellationArtAppearance.zoomFade(60.0), 0f)
+        assertEquals(1f, ConstellationArtAppearance.zoomFade(ConstellationArtAppearance.ZOOM_FADE_FULL_FOV_DEG), 0f)
+        assertEquals(0f, ConstellationArtAppearance.zoomFade(ConstellationArtAppearance.ZOOM_FADE_GONE_FOV_DEG), 0f)
+        assertEquals(0f, ConstellationArtAppearance.zoomFade(1.0), 0f)
+        var previous = 0f
+        var fov = ConstellationArtAppearance.ZOOM_FADE_GONE_FOV_DEG
+        while (fov <= ConstellationArtAppearance.ZOOM_FADE_FULL_FOV_DEG) {
+            val fade = ConstellationArtAppearance.zoomFade(fov)
+            assertTrue("fov $fov", fade >= previous)
+            previous = fade
+            fov += 0.5
+        }
+    }
 }

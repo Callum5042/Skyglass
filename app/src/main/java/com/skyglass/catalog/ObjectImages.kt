@@ -1,5 +1,6 @@
 package com.skyglass.catalog
 
+import com.skyglass.astro.PlanetMoon
 import com.skyglass.astro.SkyBody
 
 /**
@@ -34,6 +35,10 @@ class ObjectImageIndex(
 
     /** A planet's moons, in the order of the file (innermost first); empty for one without. */
     fun moonsOf(body: SkyBody): List<MoonImage> = moons[body].orEmpty()
+
+    /** The photo of one of the moons drawn in the sky, from its planet's gallery (matched by its English name). */
+    fun forMoon(moon: PlanetMoon): ObjectImage? =
+        moonsOf(moon.planet).firstOrNull { it.name.equals(moon.name, ignoreCase = true) }?.image
 
     val all: List<ObjectImage> get() = deepSky.values + bodies.values + moons.values.flatten().map { it.image }
 

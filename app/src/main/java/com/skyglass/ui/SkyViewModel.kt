@@ -10,8 +10,12 @@ import android.location.Location
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.skyglass.R
 import com.skyglass.astro.AstroTime
 import com.skyglass.astro.BodyPosition
+import com.skyglass.astro.PlanetMoon
+import com.skyglass.astro.PlanetMoonPosition
+import com.skyglass.astro.PlanetMoons
 import com.skyglass.astro.RiseSet
 import com.skyglass.astro.RiseSetTimes
 import com.skyglass.astro.SkyBody
@@ -47,6 +51,8 @@ import com.skyglass.render.ConstellationHitTest
 import com.skyglass.render.Observer
 import com.skyglass.render.SkyHitTest
 import com.skyglass.render.SkyRenderInputs
+import com.skyglass.render.SkyViewMath
+import com.skyglass.render.SkyZoom
 import com.skyglass.render.TapOutcome
 import com.skyglass.render.TapPick
 import com.skyglass.render.TapResolver
@@ -63,7 +69,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.math.tan
 
 /** What is behind the stars: the plain black sky, or the live rear-camera image. */
 enum class ViewMode { ENHANCED, CAMERA }
@@ -105,6 +110,7 @@ data class TapChoices(val x: Float, val y: Float, val results: List<SearchResult
 private data class Selection(
     val star: SelectedStar? = null,
     val body: SkyBody? = null,
+    val moon: PlanetMoon? = null,
     val deepSky: SelectedDeepSky? = null,
     val constellation: ConstellationDescription? = null,
     /** Where a star, deep-sky object or constellation is, for guidance; null for a body, which moves. */
@@ -124,6 +130,10 @@ data class SkyUiState(
     val bodies: List<BodyPosition> = emptyList(),
     /** The tapped body; its current position is looked up in [bodies] so the ring follows it. */
     val selectedBody: SkyBody? = null,
+    /** Jupiter's and Saturn's major moons as of the last update, hidden ones included; empty until the location is known. */
+    val moons: List<PlanetMoonPosition> = emptyList(),
+    /** The tapped (or searched-for) planet's moon; its position is looked up in [moons]. */
+    val selectedMoon: PlanetMoon? = null,
     val viewMode: ViewMode = ViewMode.ENHANCED,
     /** Set when the camera view could not be shown; cleared once it is. */
     val cameraProblem: CameraProblem? = null,
@@ -133,6 +143,13 @@ data class SkyUiState(
     val cameraWaiting: Boolean = false,
     /** The "faintest stars" slider: stars fainter than this fade out (see `StarVisibility`). */
     val limitingMagnitude: Double = StarVisibility.DEFAULT_LIMIT,
+    /**
+     * How far the current view is zoomed: the enhanced view's magnification against the default field
+     * of view (see `SkyZoom`), or the camera's zoom ratio in the camera view. 1 when not zoomed.
+     */
+    val zoom: Double = 1.0,
+    /** The zoom ratio the camera view asks the camera for; kept while the enhanced view is showing. */
+    val cameraZoomRatio: Double = 1.0,
     /**
      * Julian date (UTC) of the last body update, so at most ten seconds old: the
      * moment the details card works out the tapped object's altitude and azimuth for. Null until the
@@ -274,6 +291,10 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                         constellationSky.labels.map { it.name },
                         SkyBody.entries.associateWith { application.getString(it.nameRes()) },
                         loadedDeepSky,
+                        moonNames = PlanetMoon.entries.associateWith { application.getString(it.nameRes()) },
+                        moonDetails = PlanetMoon.entries.associateWith {
+                            application.getString(R.string.moon_of_planet, application.getString(it.planet.nameRes()))
+                        },
                     ),
                     deepSky = loadedDeepSky,
                     deepSkyDirections = deepSkyDirections,
@@ -358,15 +379,17 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         val tapX = x.toDouble()
         val tapY = y.toDouble()
         val bodies = _uiState.value.bodies
+        val moons = _uiState.value.moons
         val vertices = renderInputs.starVertices
-        val bodyHits = SkyHitTest.bodiesAt(mvp, bodies, widthPx, heightPx, tapX, tapY, density, renderInputs.maxPointSizePx)
+        val bodyHits = SkyHitTest.bodiesAt(mvp, bodies, widthPx, heightPx, tapX, tapY, density)
+        val moonHits = SkyHitTest.moonsAt(mvp, moons, widthPx, heightPx, tapX, tapY, density)
         val starHits = if (vertices != null && starNamer != null) {
             SkyHitTest.starsAt(mvp, vertices, widthPx, heightPx, tapX, tapY, density, renderInputs.limitingMagnitude)
         } else {
             emptyList()
         }
         val deepSkyHits = if (renderInputs.showDeepSky && deepSky.isNotEmpty()) {
-            val focalPx = (heightPx / 2.0) / tan(Math.toRadians(renderInputs.fovYDeg / 2))
+            val focalPx = SkyViewMath.focalLengthPx(mvp, heightPx)
             SkyHitTest.deepSkyAt(mvp, deepSky, deepSkyDirections, widthPx, heightPx, tapX, tapY, density, focalPx)
         } else {
             emptyList()
@@ -376,11 +399,11 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         val labelHit = sky?.let { ConstellationHitTest.labelAt(mvp, it, labelSizesPx, widthPx, heightPx, tapX, tapY, density) }
         val lineHit = sky?.let { ConstellationHitTest.nearestLine(mvp, it, widthPx, heightPx, tapX, tapY, density) }
 
-        when (val outcome = TapResolver.resolve(bodyHits, starHits, deepSkyHits, labelHit, lineHit)) {
+        when (val outcome = TapResolver.resolve(bodyHits, starHits, deepSkyHits, labelHit, lineHit, moonHits)) {
             TapOutcome.Nothing -> applySelection(Selection())
-            is TapOutcome.Select -> applySelection(selectionFor(outcome.pick, bodies) ?: Selection())
+            is TapOutcome.Select -> applySelection(selectionFor(outcome.pick, bodies, moons) ?: Selection())
             is TapOutcome.Choose -> {
-                val results = outcome.picks.mapNotNull { pick -> targetOf(pick, bodies)?.let { searchIndex?.resultFor(it) } }
+                val results = outcome.picks.mapNotNull { pick -> targetOf(pick, bodies, moons)?.let { searchIndex?.resultFor(it) } }
                 when (results.size) {
                     0 -> applySelection(Selection())
                     1 -> applySelection(selectionFor(results.single().target) ?: Selection())
@@ -404,17 +427,18 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(tapChoices = null) }
     }
 
-    private fun targetOf(pick: TapPick, bodies: List<BodyPosition>): SearchTarget? = when (pick) {
+    private fun targetOf(pick: TapPick, bodies: List<BodyPosition>, moons: List<PlanetMoonPosition>): SearchTarget? = when (pick) {
         is TapPick.Body -> SearchTarget.BodyTarget(bodies[pick.index].body)
+        is TapPick.Moon -> SearchTarget.MoonTarget(moons[pick.index].moon)
         is TapPick.Star -> SearchTarget.StarTarget(stars[pick.index].hr)
         is TapPick.DeepSky -> SearchTarget.DeepSkyTarget(deepSky[pick.index].id)
         is TapPick.Constellation -> SearchTarget.ConstellationTarget(pick.name)
     }
 
-    private fun selectionFor(pick: TapPick, bodies: List<BodyPosition>): Selection? = when (pick) {
+    private fun selectionFor(pick: TapPick, bodies: List<BodyPosition>, moons: List<PlanetMoonPosition>): Selection? = when (pick) {
         // A figure spread over opposite sides of the sky has no label, so it is found by abbreviation, not by name.
         is TapPick.Constellation -> describeConstellation(pick.abbreviation)?.let { Selection(constellation = it, fixedDirection = it.direction) }
-        else -> targetOf(pick, bodies)?.let(::selectionFor)
+        else -> targetOf(pick, bodies, moons)?.let(::selectionFor)
     }
 
     /** What selecting [target] means, or null if it cannot be found (the catalogue is still loading). */
@@ -431,6 +455,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         is SearchTarget.BodyTarget -> Selection(body = target.body)
+        is SearchTarget.MoonTarget -> Selection(moon = target.moon)
         is SearchTarget.DeepSkyTarget -> deepSkyIndexById[target.id]?.let { index ->
             Selection(deepSky = SelectedDeepSky(deepSky[index], deepSkyDirections[index]), fixedDirection = deepSkyDirections[index])
         }
@@ -446,6 +471,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             it.copy(
                 selectedStar = selection.star,
                 selectedBody = selection.body,
+                selectedMoon = selection.moon,
                 selectedDeepSky = selection.deepSky,
                 selectedConstellation = selection.constellation,
                 riseSet = null,
@@ -506,7 +532,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Works out when the tapped object next rises and sets, off the main thread: it scans the
      * altitude over the next day (see [RiseSet]), which for a body means a few hundred ephemeris
-     * evaluations. Called on a new selection and on every body update, so the times stay "next".
+     * evaluations. A planet's moon rises and sets with its planet (to well under a minute), so it gets
+     * the planet's times. Called on a new selection and on every body update, so the times stay "next".
      * A result for something no longer selected is dropped.
      */
     private fun refreshRiseSet() {
@@ -514,7 +541,8 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         riseSetJob = null
         val state = _uiState.value
         val star = state.selectedStar
-        val body = state.selectedBody
+        val moon = state.selectedMoon
+        val body = state.selectedBody ?: moon?.planet
         val deepSkyObject = state.selectedDeepSky
         val observer = renderInputs.observer
         if ((star == null && body == null && deepSkyObject == null) || observer == null) return
@@ -530,7 +558,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             _uiState.update {
-                if (it.selectedStar == star && it.selectedBody == body && it.selectedDeepSky == deepSkyObject) it.copy(riseSet = times) else it
+                val stillSelected = it.selectedStar == star && it.selectedMoon == moon &&
+                    (it.selectedBody ?: it.selectedMoon?.planet) == body && it.selectedDeepSky == deepSkyObject
+                if (stillSelected) it.copy(riseSet = times) else it
             }
         }
     }
@@ -628,17 +658,63 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     /**
      * Switches between the enhanced sky and the camera view. Taps keep working in both: they are
      * resolved with the MVP of the last frame, which in camera mode uses the camera's field of
-     * view (see [onCameraFieldOfView]). Leaving the camera view restores the default field of view.
+     * view (see [onCameraFieldOfView]). Each view keeps its own zoom: leaving the camera view
+     * restores the enhanced view's field of view.
      */
     fun setViewMode(mode: ViewMode) {
         renderInputs.cameraMode = mode == ViewMode.CAMERA
-        if (mode == ViewMode.ENHANCED) renderInputs.fovYDeg = SkyRenderInputs.DEFAULT_FOV_Y_DEG
+        if (mode == ViewMode.ENHANCED) renderInputs.fovYDeg = enhancedFovYDeg
         _uiState.update {
             it.copy(
                 viewMode = mode,
                 cameraProblem = if (mode == ViewMode.CAMERA) null else it.cameraProblem,
                 cameraWaiting = false,
+                zoom = if (mode == ViewMode.CAMERA) it.cameraZoomRatio else SkyZoom.magnification(enhancedFovYDeg),
             )
+        }
+    }
+
+    /** The enhanced view's field of view, as last pinched; the camera view's comes from the camera. */
+    private var enhancedFovYDeg = SkyRenderInputs.DEFAULT_FOV_Y_DEG
+
+    /** The zoom ratios the bound camera can do; nothing but 1× until it says (see [onCameraZoomRange]). */
+    private var cameraZoomRange = 1.0..1.0
+
+    /**
+     * A pinch that spread the fingers by [scale] (above 1 zooms in). The enhanced view narrows its field
+     * of view (see [SkyZoom]); the camera view changes the camera's zoom ratio, and the sky follows once
+     * the camera reports it (see `CameraPreviewLayer`), so the two stay in step.
+     */
+    fun onPinch(scale: Float) {
+        if (_uiState.value.viewMode == ViewMode.CAMERA) {
+            setCameraZoomRatio(_uiState.value.cameraZoomRatio * scale)
+        } else {
+            setEnhancedFov(SkyZoom.pinched(enhancedFovYDeg, scale.toDouble()))
+        }
+    }
+
+    /** Back to 1× in the view that is showing. */
+    fun resetZoom() {
+        if (_uiState.value.viewMode == ViewMode.CAMERA) setCameraZoomRatio(1.0) else setEnhancedFov(SkyRenderInputs.DEFAULT_FOV_Y_DEG)
+    }
+
+    /** The bound camera's range of zoom ratios; a ratio already chosen is brought inside it. */
+    fun onCameraZoomRange(minRatio: Double, maxRatio: Double) {
+        if (!(minRatio > 0.0) || maxRatio < minRatio) return
+        cameraZoomRange = minRatio..maxRatio
+        setCameraZoomRatio(_uiState.value.cameraZoomRatio)
+    }
+
+    private fun setEnhancedFov(fovYDeg: Double) {
+        enhancedFovYDeg = fovYDeg
+        if (_uiState.value.viewMode == ViewMode.ENHANCED) renderInputs.fovYDeg = fovYDeg
+        _uiState.update { if (it.viewMode == ViewMode.ENHANCED) it.copy(zoom = SkyZoom.magnification(fovYDeg)) else it }
+    }
+
+    private fun setCameraZoomRatio(ratio: Double) {
+        val clamped = if (ratio.isFinite()) ratio.coerceIn(cameraZoomRange) else 1.0.coerceIn(cameraZoomRange)
+        _uiState.update {
+            it.copy(cameraZoomRatio = clamped, zoom = if (it.viewMode == ViewMode.CAMERA) clamped else it.zoom)
         }
     }
 
@@ -690,7 +766,7 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** The vertical field of view of the camera preview as laid out, for the projection to match. */
+    /** The vertical field of view of the camera preview as laid out, at its zoom ratio, for the projection to match. */
     fun onCameraFieldOfView(fovYDeg: Double) {
         if (_uiState.value.viewMode == ViewMode.CAMERA) renderInputs.fovYDeg = fovYDeg
     }
@@ -730,8 +806,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         val observer = renderInputs.observer ?: return
         val julianDate = AstroTime.julianDate(System.currentTimeMillis())
         val bodies = SolarSystem.positions(julianDate, observer.latitudeDeg, observer.longitudeDeg)
-        renderInputs.bodyVertices = BodyVertices.build(bodies)
-        _uiState.update { it.copy(bodies = bodies, julianDate = julianDate) }
+        val moons = PlanetMoons.positions(julianDate, bodies)
+        renderInputs.bodyVertices = BodyVertices.build(bodies, moons)
+        _uiState.update { it.copy(bodies = bodies, moons = moons, julianDate = julianDate) }
         refreshRiseSet()
     }
 

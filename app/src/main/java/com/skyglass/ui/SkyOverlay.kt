@@ -1,6 +1,9 @@
 package com.skyglass.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -13,21 +16,28 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import com.skyglass.R
 import com.skyglass.astro.BodyPosition
 import com.skyglass.astro.CompassPoint
+import com.skyglass.astro.PlanetMoon
+import com.skyglass.astro.PlanetMoonPosition
 import com.skyglass.astro.SkyBody
 import com.skyglass.catalog.BodyAppearance
 import com.skyglass.catalog.ConstellationDescription
@@ -35,6 +45,7 @@ import com.skyglass.catalog.ConstellationLabel
 import com.skyglass.catalog.DeepSkyAppearance
 import com.skyglass.catalog.NavigationTarget
 import com.skyglass.catalog.SearchKind
+import com.skyglass.catalog.SearchTarget
 import com.skyglass.render.CompassLabels
 import com.skyglass.render.EdgeArrow
 import com.skyglass.render.NavInsets
@@ -42,9 +53,9 @@ import com.skyglass.render.ScreenPoint
 import com.skyglass.render.SkyNavigation
 import com.skyglass.render.SkyProjection
 import com.skyglass.render.SkyRenderInputs
+import com.skyglass.render.SkyViewMath
 import kotlin.math.cos
 import kotlin.math.min
-import kotlin.math.tan
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
@@ -61,6 +72,12 @@ private const val HIGHLIGHT_STAR_RING_PER_MAGNITUDE_DP = 0.9f
 
 /** Warmer than the constellation labels, so the Sun, Moon and planets read as a different kind of object. */
 private val BodyLabelColor = Color(0xFFD2BE94)
+
+/** The planets' moons: the bodies' hue, dimmer, in a smaller type, so the planet's own name leads. */
+private val MoonLabelColor = Color(0xFFA8987A)
+
+/** A moon is named (and a search for it stops saying "zoom in") once it has faded in this far. */
+private const val MOON_LABEL_MIN_FADE = 0.5f
 private val SelectionRingColor = Color(0xFFB8C4DC)
 
 /** Dim lilac, a different hue from the constellation names and the bodies', for the names of deep-sky objects. */
@@ -126,7 +143,11 @@ private const val ARROW_LABEL_OFFSET_DP = 34f
  * of view, and a marker round it once it is on screen. Both follow the same MVP as everything else,
  * so they hold in the camera view too.
  *
- * It redraws on every display frame; the draw lambda only reads state, so nothing recomposes.
+ * It redraws on every display frame; the draw lambda only reads state, so nothing recomposes. Sizes
+ * that follow the zoom (the Sun, Moon and planets, deep-sky objects, the compass letters' raise) are
+ * worked out from the focal length of that same MVP, so they match the frame on screen mid-pinch.
+ *
+ * A two-finger pinch reports its scale through [onPinch] (above 1 zooms in) and is never taken for a tap.
  *
  * @param navigationInsets space in pixels the arrow keeps clear at each edge (toggles, cards, panels)
  */
@@ -137,6 +158,8 @@ fun SkyOverlay(
     bodies: List<BodyPosition>,
     selectedStar: SelectedStar?,
     selectedBody: BodyPosition?,
+    moons: List<PlanetMoonPosition>,
+    selectedMoon: PlanetMoonPosition?,
     deepSkyLabels: List<DeepSkyLabel>,
     selectedDeepSky: SelectedDeepSky?,
     showDeepSky: Boolean,
@@ -146,6 +169,7 @@ fun SkyOverlay(
     navigationInsets: NavInsets,
     showHorizon: Boolean,
     onTap: (x: Float, y: Float, widthPx: Int, heightPx: Int, labelSizesPx: FloatArray) -> Unit,
+    onPinch: (scale: Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val textMeasurer = rememberTextMeasurer()
@@ -158,6 +182,12 @@ fun SkyOverlay(
     val currentLabelSizesPx by rememberUpdatedState(labelSizesPx)
     val measuredDeepSkyLabels = remember(deepSkyLabels, labelStyle) { deepSkyLabels.map { textMeasurer.measure(it.text, labelStyle) } }
     val bodyLabelStyle = MaterialTheme.typography.labelLarge
+    val moonLabelStyle = MaterialTheme.typography.labelSmall
+    val moonNames = PlanetMoon.entries.associateWith { stringResource(it.nameRes()) }
+    val measuredMoonNames = remember(moonNames, moonLabelStyle) {
+        moonNames.mapValues { (_, name) -> textMeasurer.measure(name, moonLabelStyle) }
+    }
+    val zoomHint = stringResource(R.string.moon_zoom_hint)
     val bodyNames = SkyBody.entries.associateWith { stringResource(it.nameRes()) }
     val measuredBodyNames = remember(bodyNames, bodyLabelStyle) {
         bodyNames.mapValues { (_, name) -> textMeasurer.measure(name, bodyLabelStyle) }
@@ -173,6 +203,7 @@ fun SkyOverlay(
     val ringRadiusPx = with(LocalDensity.current) { RING_RADIUS_DP.dp.toPx() }
     val density = LocalDensity.current.density
     val currentOnTap by rememberUpdatedState(onTap)
+    val currentOnPinch by rememberUpdatedState(onPinch)
     val arrowSizePx = with(LocalDensity.current) { ARROW_SIZE_DP.dp.toPx() }
     val arrowPath = remember(arrowSizePx) {
         Path().apply { // pointing right (+x), centred near the origin; rotated to the target's direction when drawn
@@ -190,22 +221,27 @@ fun SkyOverlay(
     }
 
     Canvas(
-        modifier = modifier.pointerInput(Unit) {
-            detectTapGestures { offset: Offset ->
-                currentOnTap(offset.x, offset.y, size.width, size.height, currentLabelSizesPx)
-            }
-        },
+        modifier = modifier
+            .pointerInput(Unit) { detectPinch { scale -> currentOnPinch(scale) } }
+            .pointerInput(Unit) {
+                detectTapGestures { offset: Offset ->
+                    currentOnTap(offset.x, offset.y, size.width, size.height, currentLabelSizesPx)
+                }
+            },
     ) {
         @Suppress("UNUSED_EXPRESSION")
         frameTick // read so the canvas is redrawn each frame
         val mvp = renderInputs.lastMvp ?: return@Canvas
         val width = size.width.toInt()
         val height = size.height.toInt()
+        // The focal length of the frame on screen, for everything whose drawn size follows the zoom.
+        val focalPx = SkyViewMath.focalLengthPx(mvp, height)
 
         if (showHorizon) {
             renderInputs.lastHorizonMvp?.let { horizonMvp ->
                 val edgeMarginPx = COMPASS_LABEL_EDGE_MARGIN_DP.dp.toPx().toDouble()
-                for (placed in CompassLabels.place(horizonMvp, width, height, edgeMarginPx)) {
+                val raiseDeg = CompassLabels.anchorAltitudeDeg(focalPx, density)
+                for (placed in CompassLabels.place(horizonMvp, width, height, edgeMarginPx, raiseDeg)) {
                     val layout = measuredCompass.getValue(placed.point)
                     drawText(
                         layout,
@@ -254,7 +290,6 @@ fun SkyOverlay(
 
         // Deep-sky objects are named below their symbol, or inside it if it is huge. The symbol's
         // extent is worked out as the renderer does, from the field of view the last frame used.
-        val focalPx = (height / 2.0) / tan(Math.toRadians(renderInputs.fovYDeg / 2))
         val minDrawnRadiusPx = DeepSkyAppearance.MIN_RADIUS_DP * density.toDouble()
         if (showDeepSky) {
             deepSkyLabels.forEachIndexed { i, label ->
@@ -275,26 +310,62 @@ fun SkyOverlay(
             }
         }
 
-        // Named just below each disc, so the label never covers the body itself.
+        // Named just below each disc, so the label never covers the body itself; zoomed in, the disc is
+        // drawn at its true size and the label moves out with its edge.
+        // What a moon's name must not cover: each body's glow and name, and the moons' own dots.
+        val takenLabelRects = ArrayList<Rect>()
         for (body in bodies) {
             val point = SkyProjection.project(mvp, body.direction, width, height) ?: continue
-            if (!SkyProjection.isOnScreen(point, width, height)) continue
+            val drawn = BodyAppearance.drawn(body, focalPx, density)
+            val discPx = drawn.labelRadiusPx.toFloat()
+            if (!SkyProjection.isOnScreen(point, width, height, marginPx = discPx.toDouble())) continue
             val layout = measuredBodyNames.getValue(body.body)
-            drawText(
-                layout,
-                color = BodyLabelColor,
-                topLeft = Offset(
-                    point.x.toFloat() - layout.size.width / 2f,
-                    point.y.toFloat() + (BodyAppearance.discRadiusDp(body) + BODY_LABEL_GAP_DP).dp.toPx(),
-                ),
-            )
+            val topLeft = Offset(point.x.toFloat() - layout.size.width / 2f, point.y.toFloat() + discPx + BODY_LABEL_GAP_DP.dp.toPx())
+            drawText(layout, color = BodyLabelColor, topLeft = topLeft)
+            takenLabelRects += Rect(topLeft, Size(layout.size.width.toFloat(), layout.size.height.toFloat()))
+            takenLabelRects += Rect(Offset(point.x.toFloat(), point.y.toFloat()), discPx)
         }
 
-        val selectedDirection = selectedStar?.direction ?: selectedBody?.direction ?: selectedDeepSky?.direction
+        // The planets' moons are named once they have faded in clear of their planet, in the same fade.
+        // They lie in a line and Saturn's crowd together, so the brighter ones are named first, each below,
+        // above, right of or left of its dot, wherever its name overlaps no name already drawn (a planet's
+        // included); one with no room is left unnamed, and can still be tapped.
+        val labelGapPx = BODY_LABEL_GAP_DP.dp.toPx()
+        for (moon in moons) {
+            if (moon.hidden || BodyAppearance.satelliteFade(moon.separationTan, focalPx, density) <= 0f) continue
+            val point = SkyProjection.project(mvp, moon.direction, width, height) ?: continue
+            takenLabelRects += Rect(Offset(point.x.toFloat(), point.y.toFloat()), BodyAppearance.drawn(moon, density).labelRadiusPx.toFloat())
+        }
+        for (moon in moons.sortedBy { it.vmag }) {
+            if (moon.hidden) continue
+            val fade = BodyAppearance.satelliteFade(moon.separationTan, focalPx, density)
+            if (fade < MOON_LABEL_MIN_FADE) continue
+            val point = SkyProjection.project(mvp, moon.direction, width, height) ?: continue
+            if (!SkyProjection.isOnScreen(point, width, height)) continue
+            val layout = measuredMoonNames.getValue(moon.moon)
+            val size = Size(layout.size.width.toFloat(), layout.size.height.toFloat())
+            val reach = BodyAppearance.drawn(moon, density).labelRadiusPx.toFloat() + labelGapPx
+            val x = point.x.toFloat()
+            val y = point.y.toFloat()
+            val candidates = listOf(
+                Offset(x - size.width / 2, y + reach),
+                Offset(x - size.width / 2, y - reach - size.height),
+                Offset(x + reach, y - size.height / 2),
+                Offset(x - reach - size.width, y - size.height / 2),
+            )
+            val rect = candidates.map { Rect(it, size) }.firstOrNull { candidate -> takenLabelRects.none { it.overlaps(candidate) } } ?: continue
+            takenLabelRects += rect
+            drawText(layout, color = MoonLabelColor.copy(alpha = fade), topLeft = rect.topLeft)
+        }
+
+        val selectedDirection = selectedStar?.direction ?: selectedBody?.direction ?: selectedDeepSky?.direction ?: selectedMoon?.direction
         if (selectedDirection != null) {
             val point = SkyProjection.project(mvp, selectedDirection, width, height)
             val radiusPx = when {
-                selectedBody != null -> maxOf(ringRadiusPx, (BodyAppearance.discRadiusDp(selectedBody) + BODY_RING_GAP_DP).dp.toPx())
+                selectedBody != null -> maxOf(
+                    ringRadiusPx,
+                    BodyAppearance.drawn(selectedBody, focalPx, density).labelRadiusPx.toFloat() + BODY_RING_GAP_DP.dp.toPx(),
+                )
                 selectedDeepSky != null -> maxOf(
                     ringRadiusPx,
                     min(
@@ -314,7 +385,7 @@ fun SkyOverlay(
             }
         }
 
-        val targetDirection = navigation?.directionIn(bodies)
+        val targetDirection = navigation?.directionIn(bodies, moons)
         if (navigation != null && targetDirection != null) {
             val guidance = SkyNavigation.guide(mvp, targetDirection, width, height, navigationInsets)
             guidance.onScreen?.let { point ->
@@ -329,10 +400,21 @@ fun SkyOverlay(
                     }
                     SearchKind.BODY -> {
                         val body = bodies.firstOrNull { it.direction == targetDirection }
-                        maxOf(TARGET_STAR_RADIUS_DP, (body?.let(BodyAppearance::discRadiusDp) ?: 0f) + TARGET_BODY_GAP_DP).dp.toPx()
+                        val discPx = body?.let { BodyAppearance.drawn(it, focalPx, density).labelRadiusPx.toFloat() } ?: 0f
+                        maxOf(TARGET_STAR_RADIUS_DP.dp.toPx(), discPx + TARGET_BODY_GAP_DP.dp.toPx())
                     }
                 }
                 drawTargetMarker(point, radiusPx)
+                // A planet's moon is not drawn until the view is zoomed in far enough to separate it.
+                val targetMoon = (navigation.result.target as? SearchTarget.MoonTarget)?.let { t -> moons.firstOrNull { it.moon == t.moon } }
+                if (targetMoon != null && BodyAppearance.satelliteFade(targetMoon.separationTan, focalPx, density) < MOON_LABEL_MIN_FADE) {
+                    val layout = textMeasurer.measure(zoomHint, moonLabelStyle)
+                    drawText(
+                        layout,
+                        color = NavigationColor,
+                        topLeft = Offset(point.x.toFloat() - layout.size.width / 2f, point.y.toFloat() + radiusPx + BODY_LABEL_GAP_DP.dp.toPx()),
+                    )
+                }
             }
             guidance.arrow?.let { arrow ->
                 drawGuideArrow(arrow, arrowPath)
@@ -349,6 +431,25 @@ fun SkyOverlay(
                 )
             }
         }
+    }
+}
+
+/**
+ * Reports each step of a two-finger pinch as the factor the fingers' spread changed by, and consumes
+ * those moves, so the tap detector after it cancels instead of taking the gesture for a tap. One
+ * finger alone is left to the tap detector.
+ */
+private suspend fun PointerInputScope.detectPinch(onPinch: (scale: Float) -> Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        do {
+            val event = awaitPointerEvent()
+            if (event.changes.count { it.pressed } >= 2) {
+                val zoom = event.calculateZoom()
+                if (zoom != 1f) onPinch(zoom)
+                event.changes.forEach { if (it.positionChanged()) it.consume() }
+            }
+        } while (event.changes.any { it.pressed })
     }
 }
 

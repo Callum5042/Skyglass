@@ -55,6 +55,8 @@ import com.skyglass.astro.BodyPosition
 import com.skyglass.astro.BodySize
 import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.MoonPhase
+import com.skyglass.astro.PlanetMoonPosition
+import com.skyglass.astro.PlanetMoons
 import com.skyglass.astro.RiseSet
 import com.skyglass.astro.RiseSetTimes
 import com.skyglass.astro.Sexagesimal
@@ -78,6 +80,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import androidx.compose.ui.text.intl.Locale as ComposeLocale
 import kotlin.math.abs
+import kotlin.math.atan
 
 /** The cards are no wider than this, and the detail rows scroll beyond [DetailRowsMaxHeight], so they never take over the sky. */
 private val CardMaxWidth = 360.dp
@@ -444,6 +447,78 @@ fun BodyInfoCard(
         },
     )
 }
+
+/**
+ * Details of a tapped or searched-for moon of Jupiter or Saturn: name, whose moon it is, magnitude and
+ * where it is now, then (when [expanded]) how far from its planet and which way, its coordinates, and
+ * rise and set (its planet's, [riseSet]). The photo is the one in its planet's gallery.
+ *
+ * @param planet its planet's current position, for the offset; null until the bodies are known
+ */
+@Composable
+fun PlanetMoonInfoCard(
+    position: PlanetMoonPosition,
+    planet: BodyPosition?,
+    image: ObjectImage?,
+    observer: Observer?,
+    julianDate: Double?,
+    riseSet: RiseSetTimes?,
+    expanded: Boolean,
+    onToggleExpanded: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val placement = placementOf(position.direction, observer, julianDate)
+    val name = stringResource(position.moon.nameRes())
+    val planetName = stringResource(position.moon.planet.nameRes())
+    var photoOpen by rememberSaveable(position.moon) { mutableStateOf(false) }
+    if (photoOpen && image != null) ObjectPhotoDialog(title = name, image = image, onDismiss = { photoOpen = false })
+    ObjectCard(
+        expanded = expanded,
+        onToggleExpanded = onToggleExpanded,
+        onDismiss = onDismiss,
+        modifier = modifier,
+        header = {
+            HeaderWithPhoto(image = image, title = name, onOpenPhoto = { photoOpen = true }) {
+                Text(text = name, color = CardTextColor, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    text = stringResource(R.string.moon_of_planet, planetName),
+                    color = CardSecondaryTextColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = stringResource(R.string.star_magnitude, position.vmag),
+                    color = CardTextColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                PositionSummary(placement)
+            }
+        },
+        details = {
+            if (planet != null) {
+                DetailRow(
+                    stringResource(R.string.detail_label_from_planet, planetName),
+                    if (position.hidden) {
+                        stringResource(R.string.moon_behind_planet)
+                    } else {
+                        stringResource(
+                            PlanetMoons.sideOf(position.direction, planet.direction).offsetRes(),
+                            separationText(Math.toDegrees(atan(position.separationTan)) * 3600.0),
+                        )
+                    },
+                )
+            }
+            CoordinateRows(placement)
+            RiseSetRows(riseSet, julianDate)
+            image?.let { ImageCreditRow(it) }
+        },
+    )
+}
+
+/** An angle on the sky: whole arcseconds under a minute, else arcminutes to a tenth. */
+@Composable
+private fun separationText(arcsec: Double): String =
+    if (arcsec < 60.0) stringResource(R.string.detail_size_arcsec_whole, arcsec) else stringResource(R.string.detail_size_arcmin, arcsec / 60.0)
 
 /** What the object is, then a "did you know?", at the top of a card's details, above the rows of numbers. */
 @Composable

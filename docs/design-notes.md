@@ -10,8 +10,24 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 
 - Recomputed (`SolarSystem.positions`) on every location fix and every 10 s, into their own VBO (`SkyRenderInputs.bodyVertices`, re-uploaded when the array instance changes).
 - Accuracy: mean equator and equinox of date, with no nutation or aberration (each under 20″, and the stars leave them out too). Sun: Meeus ch. 25 (~0.01°). Moon: Meeus ch. 47 full series (~10″), made topocentric by `Parallax` (up to ~0.95°). Planets: Standish Keplerian elements for 1800–2050, with Earth taken as the Earth–Moon barycentre and three light-time iterations. They are good to 15–40″ for Mercury–Mars but only ~7′ for Jupiter and ~10′ for Saturn, so **zoom will need a better theory (VSOP87)**. Magnitudes use the Astronomical Almanac formulae; Saturn's includes the ring tilt.
-- Point sprites, with exaggerated sizes (the true Sun and Moon would be ~7 dp). The Moon's lit side comes from `SkyViewMath.spriteLight`, computed on the CPU each frame. The Moon is opaque only within its *true* radius (`uMoonOccluder`), because the drawn disc is ~4× too big and must not hide nearby stars. Tap reach is clamped to the GPU's maximum point size.
-- Limitation: GL drops a sprite once its centre leaves the screen, so the big Sun and Moon pop off at the edge. Fixing that needs quads.
+- Drawn as screen-aligned quads (`BodyVertices`, six vertices each), not point sprites: a sprite vanishes once its centre leaves the screen and can't grow past the GPU's largest point size, which the true-size Moon at 1° (~1,200 px) would. At the default view the sizes are exaggerated (the true Sun and Moon would be ~7 dp). Zoomed in, the disc is the nominal or the true size, whichever is larger, and the halo keeps its nominal width outside it (`BodyAppearance.drawn`, repeated in `BodyShaders`), so nothing changes at 1× and the growth is continuous. The shader's edges are in pixels, so a huge disc still ends crisply; the Moon's terminator narrows as it grows.
+- The Moon's lit side comes from `SkyViewMath.spriteLight`, computed on the CPU each frame. The Moon is opaque only within its *true* radius (`vOccluder`), because at 1× the drawn disc is ~4× too big and must not hide nearby stars.
+
+## Planets' moons
+
+- **Which:** Jupiter's four Galilean moons and Saturn's eight major ones (`astro/PlanetMoons`). Not drawn: Mars', Uranus' and Neptune's (magnitude 11 to 14, within an arcminute of their planet; Meeus has no theory for them).
+- **Theory:** Meeus ch. 44 (the low-accuracy method) for Jupiter's and ch. 46 for Saturn's. The tests match Meeus' worked examples 44.a (to 0.01 Jupiter radius) and 46.a (to 0.003 Saturn radius, with Saturn's place for that instant taken from JPL Horizons). The chapter 46 port follows the layout of Sonia Keys' `meeus` Go library (MIT licence), which was used to check it.
+- **Saturn's theory works in B1950 ecliptic coordinates.** Saturn's direction of date goes to J2000, then to B1950 (IAU 1976 precession with T = −0.5), then to the B1950 ecliptic.
+- **Placement:** Meeus gives X along the planet's equator (positive west) and Y toward its pole, in planet radii. They are laid out in the sky plane at the planet using its projected pole.
+  - Jupiter's pole is the IAU WGCCRE one; a test checks its position angle against Meeus 43.a (P = 24.80°).
+  - Saturn's pole is built from Meeus' own equator (i = 28.0817°, Ω = 168.8112°, B1950), so "north" agrees with the theory.
+- A moon behind its planet's disc (an ellipse, flattened at the poles) is neither drawn nor tappable, and its card says "behind the planet". Jupiter's low-accuracy method gives no Z, so "behind" there is cos u < 0 (u = 0 at inferior conjunction).
+- **Magnitude:** V(1,0) + 5 log₁₀(rΔ), using JPL's V(1,0), with no phase effect.
+- **Drawing:** kind 3 in the body pass, after the planets and before the Moon. A moon fades in between 5 and 9 dp from its planet's centre (`aSeparation`), so none shows at 1× (Callisto is at most 2 dp out). In 6° binoculars Jupiter's outer moons sit just beside its glare.
+- **A planet's halo narrows as its disc grows,** as fast as the disc grows (down to 0.3 of its width). The whole glow keeps its size until then, so zooming in never makes it shrink, and Io two radii out isn't buried at 1°.
+- **Labels:** brightest moon first, placed below, above, right or left of the dot, wherever it covers no planet glow, dot or name already drawn. A moon with no room goes unnamed but can still be tapped.
+- **Taps:** a moon wins over the body, star or deep-sky object the fingertip rules picked only if it is strictly nearer, since its planet's glow is within a fingertip of any tap on it.
+- **Search:** moons are listed under "Solar system" but not suggested. Guidance shows "Pinch to zoom in" under the marker until the moon has faded in. A moon's rise and set are its planet's (they agree to well under a minute).
 
 ## Orientation
 
@@ -33,7 +49,18 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 - The geometry is a static VBO in **true ENU**, drawn with the star MVP minus `H(LST, lat)` (`SkyViewMath.horizonModelViewProjection`). It is then exact whatever the time and never needs re-uploading. A test pins that it agrees with the star MVP for all four rotations. The overlay uses `lastHorizonMvp`.
 - The horizon sits at geometric altitude 0° (no refraction), to match "above/below the horizon" on the cards. It is drawn in teal and requests 2 px; many GPUs only give 1 px, so the colour has to carry it.
 - The grid is restrained on purpose: altitude circles at 30° and 60°, verticals every 45° up to 80°, and a small zenith cross instead of eight lines meeting in a knot. Nothing is drawn below the horizon. No equator, ecliptic or equatorial grid.
-- Compass letters are raised 1° *of sky* rather than a fixed number of pixels, so they stay above the line when the phone is rolled. A point behind the viewer (clip w ≤ 0) is dropped, never mirrored onto the screen. A test checks true north with a declination built independently of `magneticToTrueEnu`.
+- Compass letters are raised by an altitude *of sky* rather than a fixed number of pixels, so they stay above the line when the phone is rolled. The altitude is recomputed each frame for a 13 dp gap (`CompassLabels.anchorAltitudeDeg`), so the letters don't float off at 1° or sink into the line at 90°. A point behind the viewer (clip w ≤ 0) is dropped, never mirrored onto the screen. A test checks true north with a declination built independently of `magneticToTrueEnu`.
+- Circles are sampled every 0.5°, so the grid still looks round at the deepest zoom.
+
+## Zoom
+
+- Pinch zooms. The enhanced view narrows its vertical field of view from 90° to 1° (`SkyZoom`); 1° is where Jupiter's moons clear the planet and the Moon fills half the screen. The camera view instead sets CameraX's zoom ratio, and the sky follows the ratio the camera *reports* (`ZoomState`), not the one asked for, so it moves with the image. Each view keeps its own zoom. A chip at the bottom shows the zoom and resets to 1×; zoom isn't persisted.
+- Zoom is a magnification, `tan(30°) / tan(fov / 2)`: the ratio of focal lengths. That's how a pinch scales what's under the fingers, and how Camera2 defines `CONTROL_ZOOM_RATIO` (whichever physical lens is in use), so `CameraFov.zoomed` is exact by definition and both views read alike.
+- Everything sized by the view (bodies, deep-sky symbols, compass raise, taps) takes its focal length from the frame's own MVP (`SkyViewMath.focalLengthPx`), never from `fovYDeg`, which the main thread may already have changed mid-pinch.
+- Hand shake grows on screen with the magnification, so in the enhanced view the orientation filter smooths more: `0.1 s × m^0.4`, capped at 0.3 s. The camera view keeps 0.05 s at any zoom, because the image isn't smoothed and the sky must stay on it.
+- The pinch detector consumes two-finger moves, so the tap detector cancels instead of taking a pinch for a tap. One finger is left alone.
+- The constellation art fades out between 25° and 10°: at 10–20 px per degree it is a blur beyond that.
+- At 1° the catalogue (V ≤ 6.5) leaves most fields empty, and the planets' Keplerian positions (up to ~7′ for Jupiter, ~10′ for Saturn) can visibly misplace them against a nearby star. The magnetometer's few degrees of heading error matter more, though; the guidance arrow finds the target.
 
 ## Camera view
 
@@ -43,7 +70,7 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
   3. the Compose overlay
 - **Blending:** the compositor expects premultiplied colour. rgb > 0 with alpha 0 only works by accident, and anything that un-premultiplies the layer (Night Light, colour conversion) drops it. So in camera mode shaders output `alpha = max(r, g, b)` and everything is blended "over" (`OverlayBlend`). As a result, drawn things *replace* camera pixels in proportion to their alpha. The Moon's whole drawn disc (alpha ~0.93) hides whatever is behind it, unlike in the enhanced view; this was accepted.
 - **Field of view:** `CameraFov.forView` works it out from the Camera2 characteristics and the preview's `resolutionInfo`. It allows for the HAL's aspect-ratio crop of the sensor, the crop rect and `FILL_CENTER`. The app requests a 4:3 stream (the whole sensor) and falls back to `TYPICAL_PHONE`. It is a pinhole model, so distortion, OIS and digital zoom are ignored (up to 1–2° at the edge). It uses the first listed focal length, which by convention is the main lens.
-- The orientation filter's time constant is 0.05 s in camera mode (0.1 s otherwise). It trades the sky trailing the image while panning against it leading the image and showing jitter.
+- The orientation filter's time constant is 0.05 s in camera mode (0.1 s otherwise, more when zoomed). It trades the sky trailing the image while panning against it leading the image and showing jitter.
 - **Camera busy:** `CameraStateTracker` shows "Waiting for the camera…" until the camera is `OPEN`. Trap: ignore everything delivered synchronously inside `observeForever` (the previous session's stale `CLOSED` plus error), and arm the tracker with `attached()` afterwards. Don't wait for a clean state instead, because `postValue` can coalesce a clean state and an error.
 - **Failures** drop back to the enhanced view with a `CameraProblem` message that clears after 8 s (`cameraProblemSeq`):
   - Permission denied.
@@ -170,14 +197,16 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 
 ## Not built
 
-- **Zoom.** It also gates a better planet theory (VSOP87), thinning labels by field of view, and fading the art on zoom-in.
+- **A better planet theory (VSOP87)** for deep zoom, and **more labels when zoomed in** (every deep-sky object, named stars).
+- **Planet detail at zoom:** Saturn's rings (Meeus ch. 45 gives their tilt and position angle), surface texture on the planets and the Moon.
+- **Moons:** Mars', Uranus' and Neptune's moons in the sky; eclipses in the planet's shadow and shadow transits; Jupiter's high-accuracy theory (Meeus' E5 method).
 - **IAU constellation boundaries** (Roman 1987, CDS VI/42). They would give every star a constellation and let a tap on empty sky select one.
-- **Other objects:** planetary moons in the sky, asteroids, comets and satellites.
+- **Other objects:** asteroids, comets and satellites.
 - **Daylight and twilight sky:** everything is drawn whatever the Sun's altitude.
 - **Light pollution from GPS** (see Faintest stars).
 - **Equator, ecliptic and equatorial grid.**
 - **Camera image as a GL external texture:** it would fix the `TextureView` fallback and a red camera image in night mode.
-- **Sun and Moon as quads**, so they don't pop off at the screen edge.
+
 - **Search:** on-target confirmation, haptics, recent and favourite searches.
 - **An About / credits screen.**
 - **Constellation card:** boundaries in the chart, a larger chart, pronunciation, best season, and the deep-sky objects it contains.

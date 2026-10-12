@@ -1,6 +1,8 @@
 package com.skyglass.catalog
 
 import com.skyglass.astro.BodyPosition
+import com.skyglass.astro.PlanetMoon
+import com.skyglass.astro.PlanetMoonPosition
 import com.skyglass.astro.SkyBody
 import com.skyglass.math.Vector3
 import java.text.Normalizer
@@ -11,6 +13,9 @@ sealed interface SearchTarget {
     data class StarTarget(val hr: Int) : SearchTarget
 
     data class BodyTarget(val body: SkyBody) : SearchTarget
+
+    /** One of Jupiter's or Saturn's moons; it is listed with the bodies ([SearchKind.BODY]). */
+    data class MoonTarget(val moon: PlanetMoon) : SearchTarget
 
     /** A constellation figure, by the name of its label (Serpens has two figures, with distinct names). */
     data class ConstellationTarget(val name: String) : SearchTarget
@@ -48,15 +53,17 @@ data class SearchResult(
 /**
  * The thing the user is being guided to. A star's or a constellation's place in the sky is fixed
  * (in the equatorial frame of date, like the vertex buffers), so [fixedDirection] holds it; a
- * body moves, so its direction is looked up in the current positions.
+ * body or a planet's moon moves, so its direction is looked up in the current positions.
  */
 data class NavigationTarget(val result: SearchResult, val fixedDirection: Vector3? = null) {
 
-    /** Unit vector toward the target, equatorial of date; null for a body that has no position yet. */
-    fun directionIn(bodies: List<BodyPosition>): Vector3? {
-        val target = result.target
-        return if (target is SearchTarget.BodyTarget) bodies.firstOrNull { it.body == target.body }?.direction else fixedDirection
-    }
+    /** Unit vector toward the target, equatorial of date; null for a body or moon that has no position yet. */
+    fun directionIn(bodies: List<BodyPosition>, moons: List<PlanetMoonPosition> = emptyList()): Vector3? =
+        when (val target = result.target) {
+            is SearchTarget.BodyTarget -> bodies.firstOrNull { it.body == target.body }?.direction
+            is SearchTarget.MoonTarget -> moons.firstOrNull { it.moon == target.moon }?.direction
+            else -> fixedDirection
+        }
 }
 
 /**
@@ -135,6 +142,7 @@ class SkySearchIndex private constructor(private val entries: List<Entry>) {
          * @param constellationNames the names of the constellation figures that have a label
          * @param bodyNames the user-visible name of each body (localised by the caller)
          * @param deepSky the deep-sky objects the sky shows
+         * @param moonNames the user-visible name of each planet's moon, and [moonDetails] the line under it ("Moon of Jupiter")
          */
         fun build(
             stars: List<Star>,
@@ -142,10 +150,17 @@ class SkySearchIndex private constructor(private val entries: List<Entry>) {
             constellationNames: List<String>,
             bodyNames: Map<SkyBody, String>,
             deepSky: List<DeepSkyObject> = emptyList(),
+            moonNames: Map<PlanetMoon, String> = emptyMap(),
+            moonDetails: Map<PlanetMoon, String> = emptyMap(),
         ): SkySearchIndex {
-            val entries = ArrayList<Entry>(stars.size + constellationNames.size + bodyNames.size + deepSky.size)
+            val entries = ArrayList<Entry>(stars.size + constellationNames.size + bodyNames.size + deepSky.size + moonNames.size)
             for ((body, name) in bodyNames) {
                 entries += Entry(SearchResult(SearchTarget.BodyTarget(body), SearchKind.BODY, name), listOf(normalize(name)), featured = true)
+            }
+            // Not among the suggestions: most are telescopic, and none shows until the view is zoomed in.
+            for ((moon, name) in moonNames) {
+                val result = SearchResult(SearchTarget.MoonTarget(moon), SearchKind.BODY, name, detail = moonDetails[moon])
+                entries += Entry(result, listOf(normalize(name)), featured = false)
             }
             for (name in constellationNames) {
                 entries += Entry(

@@ -2,6 +2,9 @@ package com.skyglass.catalog
 
 import com.skyglass.astro.BodyPosition
 import com.skyglass.astro.Equatorial
+import com.skyglass.astro.PlanetMoon
+import com.skyglass.astro.PlanetMoonOffset
+import com.skyglass.astro.PlanetMoonPosition
 import com.skyglass.astro.SkyBody
 import com.skyglass.math.Vector3
 import org.junit.Assert.assertEquals
@@ -215,5 +218,30 @@ class SkySearchTest {
             name.hr !in bundledHrs(name.name).take(3)
         }
         assertEquals(emptyList<ProperName>(), missing)
+    }
+
+    private val moonIndex = SkySearchIndex.build(
+        stars, namer, listOf("Orion"), bodyNames,
+        moonNames = PlanetMoon.entries.associateWith { it.name.lowercase().replaceFirstChar(Char::uppercase) },
+        moonDetails = PlanetMoon.entries.associateWith { "Moon of ${it.planet.name.lowercase().replaceFirstChar(Char::uppercase)}" },
+    )
+
+    @Test
+    fun aPlanetsMoonIsFoundByName_withItsPlanet_butIsNotSuggested() {
+        val titan = moonIndex.search("titan").first()
+        assertEquals(SearchTarget.MoonTarget(PlanetMoon.TITAN), titan.target)
+        assertEquals(SearchKind.BODY, titan.kind)
+        assertEquals("Moon of Saturn", titan.detail)
+        assertEquals(SearchTarget.MoonTarget(PlanetMoon.IO), moonIndex.search("io").first().target)
+        assertTrue(moonIndex.search("").none { it.target is SearchTarget.MoonTarget })
+    }
+
+    @Test
+    fun navigationTarget_findsAMoonWhereItIsNow() {
+        val here = Vector3(0.0, 1.0, 0.0)
+        val offset = PlanetMoonOffset(PlanetMoon.TITAN, 10.0, 0.0, behind = false)
+        val titan = NavigationTarget(moonIndex.search("titan").first())
+        assertEquals(here, titan.directionIn(emptyList(), listOf(PlanetMoonPosition(PlanetMoon.TITAN, here, 8.4, offset, false, 1e-4))))
+        assertNull("no position known yet", titan.directionIn(emptyList()))
     }
 }

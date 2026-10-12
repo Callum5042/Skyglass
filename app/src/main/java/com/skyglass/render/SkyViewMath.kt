@@ -6,6 +6,7 @@ import com.skyglass.math.Matrix4
 import com.skyglass.math.Quaternion
 import com.skyglass.math.Vector3
 import kotlin.math.hypot
+import kotlin.math.sqrt
 
 /**
  * Builds the single matrix that takes static equatorial star vectors to clip space:
@@ -68,6 +69,16 @@ object SkyViewMath {
         val view = viewMatrix(deviceToMagneticEnu, declinationDeg, lstDeg, latitudeDeg, displayRotation)
         return Matrix4.perspective(fovYDeg, aspect, NEAR, FAR) * Matrix4.fromMatrix3(view)
     }
+
+    /**
+     * The focal length in pixels, `(heightPx / 2) / tan(fovY / 2)`, of the projection in [mvp] (either
+     * of the MVPs built here) on a screen [heightPx] tall. Read from the matrix itself rather than from
+     * a separately published field of view, so it always belongs to the same frame as the MVP, even
+     * while a pinch is changing the zoom: the view part is a rotation, so the length of clip y's row
+     * is the projection's `1 / tan(fovY / 2)`.
+     */
+    fun focalLengthPx(mvp: Matrix4, heightPx: Int): Double =
+        sqrt(mvp[1, 0] * mvp[1, 0] + mvp[1, 1] * mvp[1, 1] + mvp[1, 2] * mvp[1, 2]) * heightPx / 2.0
 
     /**
      * Re-expresses device coordinates in the axes of the drawn screen. [displayRotation] is a

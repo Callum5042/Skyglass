@@ -94,4 +94,25 @@ class TapResolverTest {
         assertEquals(TapResolver.MAX_STARS, 3)
         assertEquals(TapOutcome.Choose(expected.take(TapResolver.MAX_CHOICES)), outcome)
     }
+
+    @Test
+    fun aMoonNearerTheFingerThanItsPlanet_isTheMoon() {
+        // Zoomed in, a tap on Io is also within a fingertip of Jupiter's glow; the nearer one wins.
+        val jupiter = BodyHit(4, 30.0, onTarget = false)
+        val io = MoonHit(0, 2.0, onTarget = true)
+        assertEquals(select(TapPick.Moon(0)), TapResolver.resolve(listOf(jupiter), emptyList(), emptyList(), null, null, listOf(io)))
+        // And the planet when the finger is nearer the planet.
+        val farIo = MoonHit(0, 40.0, onTarget = false)
+        assertEquals(select(TapPick.Body(4)), TapResolver.resolve(listOf(jupiter), emptyList(), emptyList(), null, null, listOf(farIo)))
+    }
+
+    @Test
+    fun aMoonOnTargetWithAStar_asksWhich_bodiesAndMoonsFirst() {
+        val io = MoonHit(0, 1.0, onTarget = true)
+        val star = StarHit(7, 2.0, onTarget = true)
+        assertEquals(
+            TapOutcome.Choose(listOf(TapPick.Moon(0), TapPick.Star(7))),
+            TapResolver.resolve(emptyList(), listOf(star), emptyList(), null, null, listOf(io)),
+        )
+    }
 }

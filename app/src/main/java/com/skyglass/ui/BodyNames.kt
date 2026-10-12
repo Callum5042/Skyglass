@@ -91,6 +91,7 @@ fun SearchKind.labelRes(): Int = when (this) {
     SearchKind.CONSTELLATION -> R.string.search_kind_constellation
     SearchKind.DEEP_SKY -> R.string.search_kind_deep_sky
     SearchKind.STAR -> R.string.search_kind_star
+    SearchKind.METEOR_SHOWER -> R.string.search_kind_meteor_shower
 }
 
 @StringRes

@@ -22,6 +22,9 @@ sealed interface SearchTarget {
 
     /** A deep-sky object, by its first designation ([DeepSkyObject.id]: "M31", "NGC 869"). */
     data class DeepSkyTarget(val id: String) : SearchTarget
+
+    /** A meteor shower's radiant, by the shower's [MeteorShower.code]; offered by the Tonight list, not indexed. */
+    data class RadiantTarget(val code: String) : SearchTarget
 }
 
 /**
@@ -29,7 +32,7 @@ sealed interface SearchTarget {
  * equal. Deep-sky objects come last because many are named after a star ("Alpha Persei Cluster",
  * "Omicron Velorum Cluster"), and typing the start of the star's designation must find the star first.
  */
-enum class SearchKind { BODY, CONSTELLATION, STAR, DEEP_SKY }
+enum class SearchKind { BODY, CONSTELLATION, STAR, DEEP_SKY, METEOR_SHOWER }
 
 /**
  * One line in the search results.
@@ -51,7 +54,7 @@ data class SearchResult(
 )
 
 /**
- * The thing the user is being guided to. A star's or a constellation's place in the sky is fixed
+ * The thing the user is being guided to. A star's, a constellation's or a radiant's place in the sky is fixed
  * (in the equatorial frame of date, like the vertex buffers), so [fixedDirection] holds it; a
  * body or a planet's moon moves, so its direction is looked up in the current positions.
  */

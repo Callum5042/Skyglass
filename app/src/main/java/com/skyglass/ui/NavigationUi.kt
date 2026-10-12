@@ -35,7 +35,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -50,33 +49,11 @@ import com.skyglass.catalog.StarVisibility
 import com.skyglass.astro.CompassPoint
 import com.skyglass.render.Observer
 
-private val SearchTextColor = Color(0xFF8A8A8A)
 private val SearchActiveTextColor = Color(0xFFCBD2E0)
 
 /** About six rows; beyond it the results scroll, so the panel never covers much of the sky or sits under the keyboard. */
 private val ResultsMaxHeight = 288.dp
 private val MinTouchTarget = 48.dp
-
-/** Opens and closes the [SearchPanel]. At least 48 dp tall, like the other toggles. */
-@Composable
-fun SearchToggle(expanded: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val stateText = stringResource(if (expanded) R.string.search_toggle_open else R.string.search_toggle_closed)
-    Box(
-        modifier = modifier
-            .heightIn(min = MinTouchTarget)
-            .background(CardBackground, RoundedCornerShape(24.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { stateDescription = stateText }
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.search_toggle_label),
-            color = if (expanded) SearchActiveTextColor else SearchTextColor,
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
 
 /**
  * A text field with the best matches under it. Choosing one is [onSelect]'s business (it starts the

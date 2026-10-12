@@ -187,6 +187,43 @@
     <string name="search_kind_body">Solar system</string>
     <string name="search_kind_constellation">Constellation</string>
     <string name="search_kind_deep_sky">Deep sky</string>
+    <string name="search_kind_meteor_shower">Meteor shower</string>
+
+    <string name="tonight_toggle_label">Tonight</string>
+    <string name="tonight_toggle_open">Tonight shown</string>
+    <string name="tonight_toggle_closed">Tonight hidden</string>
+    <string name="tonight_title">Tonight</string>
+    <string name="tonight_close">Close Tonight</string>
+    <string name="tonight_working_out">Working out tonight’s sky…</string>
+    <string name="tonight_dark_now">Dark now, until %1$s</string>
+    <string name="tonight_dark_all_day">Dark all day</string>
+    <string name="tonight_dark_window">Dark from %1$s to %2$s</string>
+    <string name="tonight_dark_from">Dark from %1$s</string>
+    <string name="tonight_no_darkness">No full darkness tonight: the Sun stays less than 18° below the horizon</string>
+    <string name="tonight_shown_at_dark">Shown as at %1$s, when it gets dark</string>
+    <string name="tonight_shown_at_darkest">Shown as at %1$s, when the sky is darkest</string>
+    <string name="tonight_section_planets">Planets</string>
+    <string name="tonight_section_showers">Meteor showers</string>
+    <string name="tonight_section_deep_sky">Deep sky</string>
+    <string name="tonight_moon_phase">%1$s, %2$d%% lit</string>
+    <string name="tonight_detail_pair">%1$s · %2$s</string>
+    <string name="tonight_moon_rises">rises %1$s</string>
+    <string name="tonight_moon_sets">sets %1$s</string>
+    <string name="tonight_moon_up_all_night">up all night</string>
+    <string name="tonight_moon_down_all_night">doesn’t rise tonight</string>
+    <string name="tonight_sets">Sets %1$s</string>
+    <string name="tonight_up_all_night">Up all night</string>
+    <string name="tonight_where_below">Below the horizon</string>
+    <string name="tonight_where_low">Low in the %1$s</string>
+    <string name="tonight_where_halfway">Halfway up in the %1$s</string>
+    <string name="tonight_where_high">High in the %1$s</string>
+    <string name="tonight_where_overhead">Overhead</string>
+    <string name="tonight_shower_peak_tonight">Peaks tonight, up to %1$d an hour</string>
+    <string name="tonight_shower_peak_tomorrow">Peaks tomorrow night, up to %1$d an hour</string>
+    <string name="tonight_shower_peak_on">Peaks %1$s, up to %2$d an hour</string>
+    <string name="tonight_shower_peaked">Peaked %1$s at up to %2$d an hour</string>
+    <string name="tonight_radiant_title">%1$s radiant</string>
+
     <string name="tap_choices_title">What\'s here?</string>
 
     <string name="navigation_title">Finding %1$s</string>

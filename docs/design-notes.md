@@ -4,7 +4,11 @@ What the code cannot tell you: why each feature is built the way it is, the trap
 
 ## Settings
 
-SharedPreferences `display_settings`, written at once (the slider when the drag ends) and included in backups: `limiting_magnitude`, `show_horizon`, `show_grid`, `show_deep_sky`, `show_milky_way`, `show_constellations`, `show_constellation_art`, `night_mode`. `camera_permission_state` is separate and excluded from backup and device transfer. All the switches and the slider live in the Display card, because the top row (Display, Search, Camera) has no room for more.
+SharedPreferences `display_settings`, written at once (the slider when the drag ends) and included in backups: `limiting_magnitude`, `show_horizon`, `show_grid`, `show_deep_sky`, `show_milky_way`, `show_constellations`, `show_constellation_art`, `night_mode`. `camera_permission_state` is separate and excluded from backup and device transfer. All the switches and the slider live in the Display card, because the top bar has no room for more.
+
+## Top bar
+
+"Tonight" with its name on the left, then Search, Display and the camera view as 48 dp icon buttons on the right: four labelled buttons don't fit across 360 dp, and Tonight keeps its label because it is where a beginner starts. The glyphs are drawn on a `Canvas` (`TopBar`), so there is no icon dependency. An open panel or the camera view gets a lit border. The Tonight and search panels share the place under the bar, so opening one closes the other, and both hide the details card.
 
 ## Sun, Moon and planets
 
@@ -117,6 +121,14 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 - **Guidance** (`SkyNavigation.guide`) takes the arrow's direction from clip x, y, not from the projected point. A target behind the viewer (w < 0) would otherwise be mirrored through the centre. This is tested for all four rotations. The usable rectangle leaves out the system bars, the toggle row, the measured card and bottom panel, and a 28 dp margin.
 - Choosing a result selects the object and guides to it. Guidance ends only with Stop.
 
+## Tonight
+
+- **Panel:** its own button and card (see Top bar), in sections (Planets, Meteor showers, Deep sky) under the Moon. Each row says where to look in words (`SkyHeight`: low under 25°, halfway up, high, overhead above 80°) and a compass point, not in degrees. A row guides to its object as a search result does; a meteor shower guides to its radiant (`SearchTarget.RadiantTarget`), selecting nothing. Worked out on `Dispatchers.Default` when the panel opens and every minute while it is open.
+- **When it describes** (`Tonight.plan`): now if it is already astronomically dark, else the start of darkness, else (no darkness, summer at high latitude) the Sun's lowest point. A list opened in the afternoon then shows the coming night, not the daytime sky; the header says which moment. Darkness is `RiseSet.find` on the Sun's centre at −18°, geometric; tested against USNO's twilight table.
+- **Order:** the Moon (always: its phase decides what else shows), planets ≥ 5° up and brighter than 6 (so Uranus but not Neptune), active showers by ZHR, then up to six deep-sky objects brighter than 6 and ≥ 30° up. Bodies first because anyone can find them, deep-sky last because they want a dark sky and often binoculars. Ranked within each group by magnitude, which favours big low-surface-brightness objects (M31, the Pleiades): good beginner targets anyway.
+- **Meteor showers** (`meteor_showers.txt`): the nine annual showers with ZHR ≥ 10, from Wikipedia's list (which follows the IMO working list), fetched 2026-10-12; facts, not copied from a database. The date is the observer's local mean date. The ZHR is the peak rate under ideal skies, so the row says "up to".
+- **Radiant drift:** the table gives the radiant at the peak; away from it the radiant's ecliptic longitude moves with the Sun's mean motion and its latitude is kept, because the Earth meets the stream from a direction roughly fixed relative to the Sun. IMO's drift tables were unreachable when this was built. The approximation overstates retrograde showers' drift (the Orionids move ~0.7°/day, not 1°), so their radiant is a few degrees off at the ends of the period.
+
 ## Deep-sky objects
 
 - **Data** (`deep_sky.txt`, 176 objects): all 110 Messier objects, by modern identifications (M102 = NGC 5866, M91 = NGC 4548, M48 = NGC 2548), and 66 others, mostly Caldwell.
@@ -208,6 +220,7 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 - **Camera image as a GL external texture:** it would fix the `TextureView` fallback and a red camera image in night mode.
 
 - **Search:** on-target confirmation, haptics, recent and favourite searches.
+- **Tonight:** planets that rise later in the night, moonlight's effect on the deep-sky list, minor showers (ZHR < 10, the Taurids' fireballs), per-shower drift rates, and a date picker for another night.
 - **An About / credits screen.**
 - **Constellation card:** boundaries in the chart, a larger chart, pronunciation, best season, and the deep-sky objects it contains.
 - **Deep-sky and Milky Way:** deep-sky distances, hiding deep-sky objects below the horizon, and a Milky Way brightness setting.

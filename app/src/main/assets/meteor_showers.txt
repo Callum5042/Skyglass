@@ -1,0 +1,22 @@
+# Meteor showers: Code|Name|Start|Peak|End|ZHR|RA|Dec
+#
+#  Code       IMO three-letter code
+#  Name       English name, as shown
+#  Start, Peak, End   activity period and date of maximum, MM-DD (UT); a period may run over the new year
+#  ZHR        zenithal hourly rate at maximum: meteors an hour for one observer under a dark sky with
+#             the radiant overhead
+#  RA, Dec    radiant at maximum, J2000, degrees; the app moves it with the Sun away from the peak
+#             (see "Tonight" in docs/design-notes.md)
+#
+# The major annual showers with a ZHR of 10 or more. Values are astronomical facts, as listed by
+# Wikipedia's "List of meteor showers" (fetched 2026-10-12), which follows the International Meteor
+# Organization's working list; peak dates shift by a day from year to year.
+QUA|Quadrantids|12-28|01-03|01-12|80|230|+49
+LYR|Lyrids|04-14|04-22|04-30|18|271|+34
+ETA|Eta Aquariids|04-19|05-06|05-28|50|338|-1
+SDA|Southern Delta Aquariids|07-12|07-31|08-23|25|340|-16
+PER|Perseids|07-17|08-13|08-24|100|48|+58
+ORI|Orionids|10-02|10-21|11-07|20|95|+16
+LEO|Leonids|11-06|11-17|11-30|15|152|+22
+GEM|Geminids|12-04|12-14|12-20|150|112|+33
+URS|Ursids|12-17|12-22|12-26|10|217|+76

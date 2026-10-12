@@ -829,7 +829,7 @@ private fun RiseSetRows(riseSet: RiseSetTimes?, nowJd: Double?) {
  * in front when it is not today.
  */
 @Composable
-private fun eventTimeText(jd: Double, nowJd: Double): String {
+internal fun eventTimeText(jd: Double, nowJd: Double): String {
     val context = LocalContext.current
     val locale = ComposeLocale.current.platformLocale
     val zone = ZoneId.systemDefault()

@@ -90,7 +90,10 @@ private val ActiveTextColor = Color(0xFFCBD2E0)
 /** How long a camera message stays up if the user does not touch the switch again. */
 private const val CAMERA_PROBLEM_TIMEOUT_MS = 8_000L
 
-/** Info cards sit below the camera toggle, which owns the top-right corner. */
+/** A minute moves the sky by a quarter of a degree, well within what the list says. */
+private const val TONIGHT_REFRESH_MS = 60_000L
+
+/** Panels and info cards sit below the top bar. */
 private val TopControlsHeight = 48.dp
 
 /** Page margin round every panel, and how far the guidance arrow's centre stays from what it must not cover. */
@@ -125,6 +128,21 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     var searchQuery by rememberSaveable { mutableStateOf("") }
     BackHandler(enabled = searchOpen) { searchOpen = false }
 
+    // The Tonight panel, in the same place as the search panel, so only one of them is open at a time.
+    // Worked out when it opens, and kept current while it is open.
+    var tonightOpen by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = tonightOpen) { tonightOpen = false }
+    val locationKnown = state.observer != null
+    val catalogueLoaded = state.starCount != null
+    LaunchedEffect(tonightOpen, locationKnown, catalogueLoaded) {
+        while (tonightOpen) {
+            viewModel.refreshTonight()
+            delay(TONIGHT_REFRESH_MS)
+        }
+    }
+    // The search and Tonight panels take the details card's place while open.
+    val panelOpen = searchOpen || tonightOpen
+
     // Where the panels sit, measured, so the guidance arrow stays clear of them: the bottom of the
     // details card, the top of the bottom panel and the height of the screen (all in pixels).
     var infoCardBottomPx by remember { mutableFloatStateOf(0f) }
@@ -133,7 +151,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     val localDensity = LocalDensity.current
     val layoutDirection = LocalLayoutDirection.current
     val safeDrawing = WindowInsets.safeDrawing
-    val infoCardShowing = !searchOpen &&
+    val infoCardShowing = !panelOpen &&
         (state.selectedStar != null || selectedBody != null || selectedMoon != null || state.selectedDeepSky != null ||
             state.selectedConstellation != null)
     val navigationInsets = with(localDensity) {
@@ -239,8 +257,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                 state.tapChoices?.let { choices ->
                     TapChoicesMenu(choices = choices, onChoose = viewModel::chooseTapped, onDismiss = viewModel::dismissTapChoices)
                 }
-                // The search panel takes the cards' place while it is open.
-                state.selectedStar?.takeIf { !searchOpen }?.let { selected ->
+                state.selectedStar?.takeIf { !panelOpen }?.let { selected ->
                     StarInfoCard(
                         selected = selected,
                         fact = state.objectFacts.forStar(selected.description.hr),
@@ -258,7 +275,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
-                state.selectedDeepSky?.takeIf { !searchOpen }?.let { selected ->
+                state.selectedDeepSky?.takeIf { !panelOpen }?.let { selected ->
                     DeepSkyInfoCard(
                         selected = selected,
                         image = state.objectImages.forDeepSky(selected.obj.id),
@@ -277,7 +294,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
-                state.selectedConstellation?.takeIf { !searchOpen }?.let { selected ->
+                state.selectedConstellation?.takeIf { !panelOpen }?.let { selected ->
                     ConstellationInfoCard(
                         description = selected,
                         observer = state.observer,
@@ -293,7 +310,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
-                selectedBody?.takeIf { !searchOpen }?.let { body ->
+                selectedBody?.takeIf { !panelOpen }?.let { body ->
                     BodyInfoCard(
                         position = body,
                         image = state.objectImages.forBody(body.body),
@@ -313,7 +330,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .onGloballyPositioned { infoCardBottomPx = it.boundsInRoot().bottom },
                     )
                 }
-                selectedMoon?.takeIf { !searchOpen }?.let { moon ->
+                selectedMoon?.takeIf { !panelOpen }?.let { moon ->
                     PlanetMoonInfoCard(
                         position = moon,
                         planet = state.bodies.firstOrNull { it.body == moon.moon.planet },
@@ -351,24 +368,22 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                             .padding(top = TopControlsHeight),
                     )
                 }
-                CameraToggle(
-                    checked = state.viewMode == ViewMode.CAMERA,
-                    onCheckedChange = { wantCamera ->
-                        viewModel.clearCameraProblem()
-                        when {
-                            !wantCamera -> viewModel.setViewMode(ViewMode.ENHANCED)
-                            hasCameraPermission -> viewModel.setViewMode(ViewMode.CAMERA)
-                            else -> {
-                                rationaleBeforeRequest = context.findActivity()?.shouldShowRequestPermissionRationale(CAMERA_PERMISSION) ?: false
-                                cameraPermissionLauncher.launch(CAMERA_PERMISSION)
-                            }
-                        }
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .safeDrawingPadding()
-                        .padding(16.dp),
-                )
+                if (tonightOpen) {
+                    TonightPanel(
+                        plan = state.tonight,
+                        locationKnown = locationKnown,
+                        onSelect = { target ->
+                            viewModel.navigateToTonight(target)
+                            tonightOpen = false
+                        },
+                        onClose = { tonightOpen = false },
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .safeDrawingPadding()
+                            .padding(ScreenMargin)
+                            .padding(top = TopControlsHeight),
+                    )
+                }
                 // Bottom: the guidance banner while searching, then status messages, with the "faintest stars" slider under them.
                 Column(
                     modifier = Modifier
@@ -435,24 +450,37 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                         )
                     }
                 }
-                // Top left, mirroring the camera switch. The slider itself is hidden until asked for, so it
-                // neither covers the sky nor turns a tap near the bottom edge into a slider move.
-                Row(
+                TopBar(
+                    tonightOpen = tonightOpen,
+                    onTonightClick = {
+                        tonightOpen = !tonightOpen
+                        if (tonightOpen) searchOpen = false
+                    },
+                    searchOpen = searchOpen,
+                    onSearchClick = {
+                        searchOpen = !searchOpen
+                        if (searchOpen) tonightOpen = false
+                    },
+                    displayOpen = starLimitOpen,
+                    onDisplayClick = { starLimitOpen = !starLimitOpen },
+                    cameraOn = state.viewMode == ViewMode.CAMERA,
+                    onCameraChange = { wantCamera ->
+                        viewModel.clearCameraProblem()
+                        when {
+                            !wantCamera -> viewModel.setViewMode(ViewMode.ENHANCED)
+                            hasCameraPermission -> viewModel.setViewMode(ViewMode.CAMERA)
+                            else -> {
+                                rationaleBeforeRequest = context.findActivity()?.shouldShowRequestPermissionRationale(CAMERA_PERMISSION) ?: false
+                                cameraPermissionLauncher.launch(CAMERA_PERMISSION)
+                            }
+                        }
+                    },
                     modifier = Modifier
-                        .align(Alignment.TopStart)
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
                         .safeDrawingPadding()
                         .padding(ScreenMargin),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    StarLimitToggle(
-                        expanded = starLimitOpen,
-                        onClick = { starLimitOpen = !starLimitOpen },
-                    )
-                    SearchToggle(
-                        expanded = searchOpen,
-                        onClick = { searchOpen = !searchOpen },
-                    )
-                }
+                )
             }
         }
     }
@@ -567,27 +595,6 @@ private fun StatusOverlay(
     }
 }
 
-/** Switches between the enhanced sky (off) and the live camera image (on). */
-@Composable
-private fun CameraToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .heightIn(min = 48.dp) // the Switch alone is only ~32 dp tall
-            .background(CardBackground, RoundedCornerShape(24.dp))
-            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
-            .padding(start = 16.dp, end = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(
-            text = stringResource(R.string.camera_toggle_label),
-            color = StatusTextColor,
-            style = MaterialTheme.typography.labelLarge,
-        )
-        Switch(checked = checked, onCheckedChange = null)
-    }
-}
-
 /**
  * Shown while the view is zoomed (pinch to zoom; see `SkyZoom`): how far, and a tap to go back to 1×.
  * At least 48 dp tall, like the other controls.
@@ -611,27 +618,6 @@ private fun ZoomChip(zoom: Double, onReset: () -> Unit, modifier: Modifier = Mod
     ) {
         Text(text = value, color = StatusTextColor, style = MaterialTheme.typography.labelLarge)
         Text(text = stringResource(R.string.zoom_reset), color = ActiveTextColor, style = MaterialTheme.typography.labelLarge)
-    }
-}
-
-/** Opens and closes the [StarLimitSlider]. At least 48 dp tall, like the camera switch. */
-@Composable
-private fun StarLimitToggle(expanded: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val stateText = stringResource(if (expanded) R.string.star_limit_toggle_open else R.string.star_limit_toggle_closed)
-    Box(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .background(CardBackground, RoundedCornerShape(24.dp))
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { stateDescription = stateText }
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.star_limit_toggle_label),
-            color = if (expanded) ActiveTextColor else StatusTextColor,
-            style = MaterialTheme.typography.labelLarge,
-        )
     }
 }
 

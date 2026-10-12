@@ -391,7 +391,8 @@ fun SkyOverlay(
             guidance.onScreen?.let { point ->
                 val radiusPx = when (navigation.result.kind) {
                     SearchKind.STAR -> TARGET_STAR_RADIUS_DP.dp.toPx()
-                    SearchKind.CONSTELLATION -> TARGET_CONSTELLATION_RADIUS_DP.dp.toPx()
+                    // A radiant is a patch of sky a few degrees across, not a point.
+                    SearchKind.CONSTELLATION, SearchKind.METEOR_SHOWER -> TARGET_CONSTELLATION_RADIUS_DP.dp.toPx()
                     SearchKind.DEEP_SKY -> {
                         // The tapped or searched-for object is selected, so its extent is to hand.
                         val extentPx = selectedDeepSky?.takeIf { it.direction == targetDirection }

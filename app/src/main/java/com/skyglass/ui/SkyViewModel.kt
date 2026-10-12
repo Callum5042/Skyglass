@@ -32,10 +32,12 @@ import com.skyglass.catalog.ConstellationSky
 import com.skyglass.catalog.DeepSkyLabels
 import com.skyglass.catalog.DeepSkyObject
 import com.skyglass.catalog.DeepSkyVertices
+import com.skyglass.catalog.MeteorShower
 import com.skyglass.catalog.MilkyWayMesh
 import com.skyglass.catalog.NavigationTarget
 import com.skyglass.catalog.ObjectFactIndex
 import com.skyglass.catalog.ObjectImageIndex
+import com.skyglass.catalog.SearchKind
 import com.skyglass.catalog.SearchResult
 import com.skyglass.catalog.SearchTarget
 import com.skyglass.catalog.SkySearchIndex
@@ -46,6 +48,7 @@ import com.skyglass.catalog.StarNamer
 import com.skyglass.catalog.StarPositions
 import com.skyglass.catalog.StarVisibility
 import com.skyglass.catalog.StarVertices
+import com.skyglass.catalog.Tonight
 import com.skyglass.math.Vector3
 import com.skyglass.render.ConstellationHitTest
 import com.skyglass.render.Observer
@@ -189,6 +192,8 @@ data class SkyUiState(
     val objectImages: ObjectImageIndex = ObjectImageIndex.EMPTY,
     /** The "about" and "did you know?" words on the details cards; empty until loaded. */
     val objectFacts: ObjectFactIndex = ObjectFactIndex.EMPTY,
+    /** What is worth seeing tonight, for the search panel; null until the location is known and it is first asked for. */
+    val tonight: Tonight.Plan? = null,
 )
 
 private class LoadedSky(
@@ -225,11 +230,13 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private var constellationLore: Map<String, ConstellationLore> = emptyMap()
     private var constellationArt: ConstellationArtMesh? = null
     private val constellationDescriptions = HashMap<String, ConstellationDescription>()
+    private var meteorShowers: List<MeteorShower> = emptyList()
 
     private val locationSource = LocationSource(application)
     private var locationJob: Job? = null
     private var bodyJob: Job? = null
     private var riseSetJob: Job? = null
+    private var tonightJob: Job? = null
 
     // Display settings the user chooses, kept apart from the camera state below. Safe to back up.
     private val displayPreferences = application.getSharedPreferences(DISPLAY_PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -354,6 +361,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update { it.copy(objectFacts = facts) }
         }
         viewModelScope.launch {
+            meteorShowers = withContext(Dispatchers.IO) { StarCatalog.loadMeteorShowers(application.assets) }
+        }
+        viewModelScope.launch {
             orientationSensor.accuracy.collect { accuracy -> _uiState.update { it.copy(compassAccuracy = accuracy) } }
         }
     }
@@ -462,6 +472,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         is SearchTarget.ConstellationTarget -> _uiState.value.constellationLabels.firstOrNull { it.name == target.name }?.let { label ->
             describeConstellation(label.abbreviation)?.let { Selection(constellation = it, fixedDirection = label.direction) }
         }
+        // Nothing to select or describe, only a place to guide to.
+        is SearchTarget.RadiantTarget -> _uiState.value.tonight?.showers?.firstOrNull { it.shower.code == target.code }
+            ?.let { Selection(fixedDirection = it.direction) }
     }
 
     /** Makes [selection] the selection (an empty one clears it), lights a selected constellation and starts its rise and set. */
@@ -517,6 +530,40 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         val selection = selectionFor(result.target) ?: return
         _uiState.update { it.copy(tapChoices = null) }
         applySelection(selection, navigation = NavigationTarget(result, selection.fixedDirection))
+    }
+
+    /**
+     * Guides to something from the Tonight list, as choosing it in search would: a body or deep-sky
+     * object by its search row, a meteor shower to its radiant.
+     */
+    fun navigateToTonight(target: SearchTarget) {
+        val result = when (target) {
+            is SearchTarget.RadiantTarget -> _uiState.value.tonight?.showers?.firstOrNull { it.shower.code == target.code }?.let {
+                SearchResult(target, SearchKind.METEOR_SHOWER, getApplication<Application>().getString(R.string.tonight_radiant_title, it.shower.name))
+            }
+            else -> searchIndex?.resultFor(target)
+        } ?: return
+        navigateTo(result)
+    }
+
+    /**
+     * Works out the Tonight list ([SkyUiState.tonight]) in the background, for now and the observer's
+     * place: a few thousand ephemeris evaluations (the darkness scan and the rises and sets), tens of
+     * milliseconds. No-op until the location is known; called while the list is showing.
+     */
+    fun refreshTonight() {
+        val observer = renderInputs.observer ?: return
+        tonightJob?.cancel()
+        val nowJd = AstroTime.julianDate(System.currentTimeMillis())
+        val objects = deepSky
+        val directions = deepSkyDirections
+        val showers = meteorShowers
+        tonightJob = viewModelScope.launch {
+            val plan = withContext(Dispatchers.Default) {
+                Tonight.plan(nowJd, observer.latitudeDeg, observer.longitudeDeg, objects, directions, showers) { ensureActive() }
+            }
+            _uiState.update { it.copy(tonight = plan) }
+        }
     }
 
     /** Ends the guidance. The object stays selected, so its card is not taken away. */

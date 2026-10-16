@@ -17,6 +17,7 @@ object StarCatalog {
     const val OBJECT_IMAGES_DIRECTORY = "object_images"
     const val OBJECT_FACTS_ASSET_NAME = "object_facts.txt"
     const val METEOR_SHOWERS_ASSET_NAME = "meteor_showers.txt"
+    const val LIGHT_POLLUTION_ASSET_NAME = "light_pollution.bin"
 
     /** Reads the bundled catalogue and keeps naked-eye stars. Blocking; call off the main thread. */
     fun loadNakedEyeStars(assets: AssetManager): List<Star> =
@@ -55,6 +56,14 @@ object StarCatalog {
     /** Blocking; call off the main thread. */
     fun loadMeteorShowers(assets: AssetManager): List<MeteorShower> =
         assets.open(METEOR_SHOWERS_ASSET_NAME).bufferedReader(Charsets.UTF_8).useLines(MeteorShowerParser::parse)
+
+    /**
+     * The modelled clear-sky zenith brightness at a place, mag/arcsec², or null outside the map (see
+     * [LightPollution]). Blocking, tens of milliseconds (it inflates the map down to that latitude);
+     * call off the main thread.
+     */
+    fun loadSkyBrightness(assets: AssetManager, latDeg: Double, lonDeg: Double): Double? =
+        assets.open(LIGHT_POLLUTION_ASSET_NAME).use { LightPollution.skyBrightness(it, latDeg, lonDeg) }
 
     /**
      * Decodes a photo, subsampled by a power of two while it stays at least [minSidePx] on its

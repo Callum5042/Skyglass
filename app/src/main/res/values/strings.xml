@@ -154,6 +154,10 @@
     <string name="star_limit_value">Faintest stars: magnitude %1$.1f · about Bortle %2$d</string>
     <string name="star_limit_description">Faintest stars shown</string>
     <string name="star_limit_state">Magnitude %1$.1f. Stars fainter than this fade out.</string>
+    <string name="sky_brightness_here">Your sky here: about Bortle %1$d (%2$.1f mag/arcsec²)</string>
+    <string name="sky_brightness_match">Match</string>
+    <string name="sky_brightness_match_description">Set faintest stars to match your sky</string>
+    <string name="light_pollution_credit">Light pollution modelled from VIIRS night lights by the Earth Observation Group, Colorado School of Mines (CC BY 4.0)</string>
 
     <string name="guide_horizon">Horizon</string>
     <string name="guide_grid">Grid</string>

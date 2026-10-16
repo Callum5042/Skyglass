@@ -14,3 +14,5 @@
 .cxx
 local.properties
 /tools/object_images/.cache
+/tools/light_pollution/.cache
+/tools/light_pollution/.venv

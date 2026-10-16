@@ -73,6 +73,7 @@ import com.skyglass.render.NavInsets
 import com.skyglass.render.SkyRenderer
 import com.skyglass.render.SkyZoom
 import kotlinx.coroutines.delay
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -373,6 +374,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     TonightPanel(
                         plan = state.tonight,
                         locationKnown = locationKnown,
+                        skyBrightness = state.skyBrightness,
                         onSelect = { target ->
                             viewModel.navigateToTonight(target)
                             tonightOpen = false
@@ -428,8 +430,10 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     if (starLimitOpen) {
                         StarLimitSlider(
                             limitingMagnitude = state.limitingMagnitude,
+                            skyBrightness = state.skyBrightness,
                             onChange = viewModel::setLimitingMagnitude,
                             onChangeFinished = viewModel::saveLimitingMagnitude,
+                            onMatchSky = viewModel::matchSkyBrightness,
                             modifier = Modifier.widthIn(max = 420.dp).fillMaxWidth(),
                         )
                         DisplaySwitches(
@@ -701,12 +705,17 @@ private fun GuideSwitch(label: String, checked: Boolean, onCheckedChange: (Boole
  * (left) to every star in the catalogue (right, "all"). The Bortle class in the label above the
  * slider is a rough guide for matching it to the sky at hand; see [Bortle]. Values move in steps
  * of 0.1 (the view model snaps them), so the label and the class always describe what is applied.
+ * Once the light-pollution map knows the observer's sky ([skyBrightness]), a line under the slider
+ * gives its Bortle class, with a button that moves the slider to match ([onMatchSky]) while it does
+ * not already, and the map's credit, which its licence asks for.
  */
 @Composable
 private fun StarLimitSlider(
     limitingMagnitude: Double,
+    skyBrightness: Double?,
     onChange: (Double) -> Unit,
     onChangeFinished: () -> Unit,
+    onMatchSky: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val label = if (StarVisibility.isUnlimited(limitingMagnitude)) {
@@ -738,8 +747,41 @@ private fun StarLimitSlider(
                 stateDescription = state
             },
         )
+        if (skyBrightness != null) {
+            val matched = StarVisibility.snapLimit(Bortle.limitingMagnitudeForSkyBrightness(skyBrightness))
+            val matchDescription = stringResource(R.string.sky_brightness_match_description)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(
+                    text = stringResource(R.string.sky_brightness_here, Bortle.classForSkyBrightness(skyBrightness), skyBrightness),
+                    color = StatusTextColor,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (abs(matched - limitingMagnitude) > STAR_LIMIT_TOLERANCE) {
+                    Box(
+                        modifier = Modifier
+                            .heightIn(min = 48.dp)
+                            .clickable(role = Role.Button, onClick = onMatchSky)
+                            .semantics { contentDescription = matchDescription }
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(text = stringResource(R.string.sky_brightness_match), color = ActiveTextColor, style = MaterialTheme.typography.labelLarge)
+                    }
+                }
+            }
+            Text(
+                text = stringResource(R.string.light_pollution_credit),
+                color = StatusTextColor.copy(alpha = 0.7f),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
     }
 }
+
+/** Slack for comparing two limits that are both multiples of [StarVisibility.STEP]. */
+private const val STAR_LIMIT_TOLERANCE = 1e-6
 
 private tailrec fun Context.findActivity(): ComponentActivity? = when (this) {
     is ComponentActivity -> this

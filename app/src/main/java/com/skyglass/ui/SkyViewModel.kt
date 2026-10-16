@@ -21,6 +21,7 @@ import com.skyglass.astro.RiseSetTimes
 import com.skyglass.astro.SkyBody
 import com.skyglass.astro.SolarSystem
 import com.skyglass.catalog.BodyVertices
+import com.skyglass.catalog.Bortle
 import com.skyglass.catalog.Constellation
 import com.skyglass.catalog.ConstellationArtMesh
 import com.skyglass.catalog.ConstellationDescriber
@@ -194,6 +195,12 @@ data class SkyUiState(
     val objectFacts: ObjectFactIndex = ObjectFactIndex.EMPTY,
     /** What is worth seeing tonight, for the search panel; null until the location is known and it is first asked for. */
     val tonight: Tonight.Plan? = null,
+    /**
+     * The light-pollution map's clear, moonless zenith sky brightness at the observer, mag/arcsec²
+     * (see `LightPollution`); null until the location is known, and beyond the map (above 75° N or
+     * below 65° S).
+     */
+    val skyBrightness: Double? = null,
 )
 
 private class LoadedSky(
@@ -237,6 +244,9 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
     private var bodyJob: Job? = null
     private var riseSetJob: Job? = null
     private var tonightJob: Job? = null
+    private var skyBrightnessJob: Job? = null
+    /** Where [SkyUiState.skyBrightness] was last looked up, in hundredths of a degree (~1 km). */
+    private var skyBrightnessAt: Pair<Long, Long>? = null
 
     // Display settings the user chooses, kept apart from the camera state below. Safe to back up.
     private val displayPreferences = application.getSharedPreferences(DISPLAY_PREFERENCES_NAME, Context.MODE_PRIVATE)
@@ -630,6 +640,16 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         if (selectedBefore != null && _uiState.value.selectedStar == null) refreshRiseSet() // cancels the calculation for the dropped star
     }
 
+    /**
+     * Sets the "faintest stars" slider to the limiting magnitude the light-pollution map gives the
+     * observer's sky (see `Bortle.limitingMagnitudeForSkyBrightness`), and keeps it. No-op until known.
+     */
+    fun matchSkyBrightness() {
+        val sqm = _uiState.value.skyBrightness ?: return
+        setLimitingMagnitude(Bortle.limitingMagnitudeForSkyBrightness(sqm))
+        saveLimitingMagnitude()
+    }
+
     /** Persists the current "faintest stars" setting across restarts. */
     fun saveLimitingMagnitude() {
         displayPreferences.edit().putFloat(KEY_LIMITING_MAGNITUDE, _uiState.value.limitingMagnitude.toFloat()).apply()
@@ -877,6 +897,21 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         renderInputs.observer = observer
         _uiState.update { it.copy(observer = observer, locationEnabled = true) }
         updateBodies() // the Moon's parallax depends on where we are
+        updateSkyBrightness(location.latitude, location.longitude)
+    }
+
+    /** Looks the observer up in the light-pollution map, unless they have moved less than ~1 km since. */
+    private fun updateSkyBrightness(latDeg: Double, lonDeg: Double) {
+        val at = Pair(Math.round(latDeg * 100), Math.round(lonDeg * 100))
+        if (at == skyBrightnessAt) return
+        skyBrightnessAt = at
+        skyBrightnessJob?.cancel()
+        skyBrightnessJob = viewModelScope.launch {
+            val sqm = withContext(Dispatchers.IO) {
+                StarCatalog.loadSkyBrightness(getApplication<Application>().assets, latDeg, lonDeg)
+            }
+            _uiState.update { it.copy(skyBrightness = sqm) }
+        }
     }
 
     override fun onCleared() {

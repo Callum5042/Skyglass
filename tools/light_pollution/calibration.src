@@ -1,0 +1,56 @@
+# Measured zenith sky brightness used to calibrate the skyglow model in gen_light_pollution.py.
+#
+# Source: C. C. M. Kyba et al., "Worldwide variations in artificial skyglow", Scientific Reports 5,
+# 8409 (2015), doi:10.1038/srep08409, CC BY 4.0. Supplementary Tables S2 (latitude, longitude) and
+# S3 ("Clear": median clear, moonless sky brightness near local midnight in 2011-2012, in
+# mag_SQM/arcsec^2; values the paper marks with * are the 28th percentile at sites without cloud
+# reports). Sites 1-45, in the paper's order; sites 46-52 are left out, as the paper does, because
+# of instrument problems. Site 33 is the second SQM at site 32 and is kept: the fit weights Berlin
+# Steglitz twice.
+#
+# Format: name|latitude (deg N)|longitude (deg E)|clear-sky brightness (mag/arcsec^2)
+Kitt Peak, Tucson, US|31.96|-111.60|21.8
+Schiermonnikoog, NL|53.48|6.20|21.3
+Veinto Ridge, Silver City, US|32.77|-108.33|21.7
+Mount Hopkins, Tucson, US|31.68|-110.88|21.5
+Winer Observatory, Sonoita, US|31.67|-110.60|21.6
+Alice Springs, AU|-23.50|133.84|21.5
+Westhavelland, Brandenburg, DE|52.70|12.46|21.3
+Mount Lemmon, Tucson, US|32.44|-110.79|21.3
+Parey, Brandenburg, DE|52.68|12.25|21.2
+Izana, Tenerife, ES|28.30|-16.51|21.3
+Springendal, Hezingen, NL|52.43|6.88|21.1
+Radio Kootwijk, NL|52.11|5.49|20.7
+Seebergen, Lilienthal, DE|53.14|8.99|20.8
+Tucson West, US|32.24|-111.08|20.4
+Rothney Observatory, Calgary, CA|50.87|-114.29|20.7
+Vittorio Veneto, IT|46.01|12.31|20.4
+Arkemheen, NL|52.25|5.43|20.4
+CESAR, Cabauw, NL|51.97|4.93|20.3
+Babelsberg, Potsdam, DE|52.40|13.10|20.2
+Arnhem, NL|51.94|5.87|20.1
+Vestby, NO|59.60|10.76|20.1
+Lendinara, IT|45.08|11.56|20.1
+Schulzendorf, Berlin, DE|52.36|13.59|20.0
+Tucson North, US|32.32|-111.89|19.9
+Grimsby, ON, CA|43.18|-79.52|19.8
+MeteoMontebello, IT|45.47|11.35|19.7
+Castiglioncello, IT|43.41|10.42|19.8
+Nove, IT|45.71|11.68|19.5
+Horn-Lehe, Bremen, DE|53.10|8.85|19.6
+Morehead, KY, US|38.19|-83.44|19.2
+Hamilton, ON, CA|43.27|-79.96|19.2
+Steglitz, Berlin (SQM-LE), DE|52.46|13.31|19.1
+Steglitz, Berlin (SQM-LU), DE|52.46|13.31|19.2
+Adelaide, AU|-34.62|138.46|19.2
+Tucson East, US|32.23|-110.80|19.2
+Tucson Center, US|32.23|-110.95|18.6
+Utrecht, NL|52.08|5.11|19.0
+University of Vienna, AT|48.23|16.33|19.0
+Schipluiden, NL|51.99|4.28|18.5
+Plymouth University, UK|50.37|-4.14|18.5
+Tucson South, US|32.11|-110.96|18.6
+Hackescher Markt, Berlin, DE|52.52|13.40|18.3
+Universidad Complutense, Madrid, ES|40.45|-3.73|18.1
+Edmonton, AB, CA|53.53|-113.53|18.1
+Vlaardingen, NL|51.91|4.32|17.2

@@ -36,6 +36,7 @@ import com.skyglass.astro.CompassPoint
 import com.skyglass.astro.MoonPhase
 import com.skyglass.astro.RiseSetTimes
 import com.skyglass.astro.SkyPlacement
+import com.skyglass.catalog.Bortle
 import com.skyglass.catalog.Darkness
 import com.skyglass.catalog.SearchTarget
 import com.skyglass.catalog.SkyHeight
@@ -60,11 +61,14 @@ private class TonightRow(val target: SearchTarget, val title: String, val detail
  *
  * @param plan null while it is being worked out
  * @param locationKnown false until the first fix, which the plan needs
+ * @param skyBrightness the light-pollution map's sky brightness at the observer (mag/arcsec²), shown
+ *   as a Bortle class under the darkness times; null hides the line
  */
 @Composable
 fun TonightPanel(
     plan: Tonight.Plan?,
     locationKnown: Boolean,
+    skyBrightness: Double?,
     onSelect: (SearchTarget) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -105,6 +109,14 @@ fun TonightPanel(
             return@Column
         }
         DarknessLines(plan)
+        skyBrightness?.let { sqm ->
+            Text(
+                text = stringResource(R.string.sky_brightness_here, Bortle.classForSkyBrightness(sqm), sqm),
+                color = CardSecondaryTextColor,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp),
+            )
+        }
         val moon = moonRow(plan.moon, plan.nowJd)
         val planets = plan.planets.map { planet ->
             TonightRow(

@@ -35,7 +35,7 @@ It works offline, has no ads, no account and no tracking. It doesn't even ask fo
 - **Camera view** draws the sky over your phone's live camera, so labels sit on the real stars.
 - **Pinch to zoom** from a 90° view down to 1°, close enough to see Jupiter's moons line up.
 - **Night mode** turns everything red, so your eyes stay adjusted to the dark.
-- **Faintest stars slider** matches the app to your sky: drop it in a city, push it up under a dark country sky.
+- **Faintest stars slider** matches the app to your sky: drop it in a city, push it up under a dark country sky. Skyglass knows roughly how light-polluted your spot is from satellite data (shown as a Bortle class, from inner-city 9 to pristine 1), and one tap sets the slider to match.
 - Switch the artwork, horizon, grid, Milky Way and deep-sky objects on or off.
 
 ## Your first night with Skyglass
@@ -71,3 +71,4 @@ The design notes, with the reasoning behind each feature, data sources and known
 - Stars: Yale Bright Star Catalogue, 5th revised edition (Hoffleit & Warren, via CDS).
 - Constellation artwork: Johan Meuris, from [Stellarium](https://stellarium.org)'s modern sky culture, under the Free Art License 1.3; placement data under CC BY-SA 4.0.
 - Photos: NASA (public domain), and ESA/Hubble, ESO and NOIRLab under CC BY 4.0. Each photo's credit is shown in the app.
+- Light pollution: modelled from VIIRS Nighttime Lights by the Earth Observation Group, Payne Institute for Public Policy, Colorado School of Mines, under CC BY 4.0, and calibrated against the sky brightness measurements of Kyba et al. (2015, *Scientific Reports* 5, 8409), CC BY 4.0.

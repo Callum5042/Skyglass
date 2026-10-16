@@ -46,7 +46,17 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 - Stars fade with a smoothstep over 1 magnitude centred on L, so dragging never pops stars in or out. "Visible" means exactly `vmag <= L`, which is what taps and the label use. `StarShaders` repeats the `StarVisibility` expression, and a test checks that the two agree. Fully faded stars are moved outside the clip volume.
 - The slider affects stars only. The Sun, Moon and planets are what people orient by, lines and names are navigation aids, and the integrated magnitudes of deep-sky objects don't compare with a star limit. Moving the slider deselects a star it hides.
 - The slider sits behind the Display button because a Material slider jumps to wherever its track is tapped, so a permanent one stole taps meant for stars near the bottom of the screen.
-- **Light pollution from GPS is not built.** There is no keyless, bundleable source: lightpollutionmap.info needs a key from its author; the Falchi 2016 atlas is a 2.9 GB GeoTIFF under CC BY-NC; Lorenz's atlas has no licence. The app also has no INTERNET permission. If it is ever added, it must be opt-in, round coordinates to ~0.1° and fall back to the slider. For converting a measured SQM reading: NELM = 7.93 − 5·log10(10^(4.316 − SQM/5) + 1) (Schaefer 1990).
+- Once the light-pollution map knows the observer's sky, the card shows its Bortle class and a Match button that sets the slider to it (see Light pollution). The slider never moves on its own: the map is a model, and the user's eyes are the better judge.
+
+## Light pollution
+
+- **Data:** EOG VIIRS Nighttime Lights v2.2, the annual masked average (Earth Observation Group, Colorado School of Mines; CC BY 4.0; a free sign-in to download, ~325 MB). It is upward radiance, so `tools/light_pollution/gen_light_pollution.py` models the skyglow. Rejected: the Falchi 2016 atlas (CC BY-NC, 2014 data, 2.9 GB), Lorenz's atlas (no licence), lightpollutionmap.info (needs a key), and any online lookup (no INTERNET permission).
+- **Model:** zenith brightness = natural sky + K·Σ radiance·area·(d² + h²)^(−α/2) over sources within 200 km: Walker's law at a distance, flattened near the source. α, h and K are fitted with a robust loss to the 44 sites of Kyba et al. 2015 (CC BY 4.0, clear-sky medians 2011–12); the fit gives α ≈ 2.0, h ≈ 0.6 km, and the grid matches the sites to ~0.6 mag rms. The convolution is an FFT per half-degree latitude band, each band with its own kernel, wrapping in longitude.
+- **Natural sky fixed at 22.0 mag/arcsec²** (Falchi 2016). Fitted, it drifts to ~21.3, which would make every dark site Bortle 3 at best.
+- **Known errors:** sites are 2011–12 measurements against 2025 lights, so suburbs come out ~0.3 mag brighter than measured (roughly the growth VIIRS saw since). A time-matched fit is not possible: the v2.2 series starts in 2022, and the older v2/v2.1 years are processed differently. VIIRS misses the blue of white LEDs, a meter next to a lamp reads brighter than its 5 km cell, mountain observatories above the haze read darker, and snow, cloud and the Moon are ignored.
+- **Asset:** `light_pollution.bin`, SQM on 0.05° cells from 75° N to 65° S, 0.04 mag steps in one byte, each row stored as its difference from the row above and deflated (1.9 MB; the generator caps it at 6 MB). An ASCII header, which the app parses, gives the grid. The app inflates down to the observer's row on each lookup (tens of ms) rather than holding the 20 MB grid, and looks up again only after moving ~1 km. Beyond the satellite coverage there is no estimate, and the line is hidden.
+- **Bortle class:** from Wikipedia's SQM column of the Bortle table, mapped to a limiting magnitude at the same place within the class (linear between class boundaries), so the map's class and the slider's label always agree. The table lumps classes 8 and 9 below 18.0, so there the curve follows Schaefer's (1990) SQM–NELM relation, joined at 18.0; class 9 starts near 17.4.
+- **Shown** in the Tonight panel under the darkness times and in the Display card under the slider, with the EOG credit that CC BY asks for.
 
 ## Horizon and compass
 
@@ -215,7 +225,7 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 - **IAU constellation boundaries** (Roman 1987, CDS VI/42). They would give every star a constellation and let a tap on empty sky select one.
 - **Other objects:** asteroids, comets and satellites.
 - **Daylight and twilight sky:** everything is drawn whatever the Sun's altitude.
-- **Light pollution from GPS** (see Faintest stars).
+- **Light pollution:** elevation, a map view, and moonlight in the estimate.
 - **Equator, ecliptic and equatorial grid.**
 - **Camera image as a GL external texture:** it would fix the `TextureView` fallback and a red camera image in night mode.
 

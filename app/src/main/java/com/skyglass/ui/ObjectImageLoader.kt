@@ -3,8 +3,9 @@ package com.skyglass.ui
 import android.content.res.AssetManager
 import android.util.LruCache
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -43,8 +44,12 @@ private object ObjectImageCache {
 @Composable
 internal fun rememberObjectImage(image: ObjectImage, minSidePx: Int): ImageBitmap? {
     val assets = LocalContext.current.assets
-    val bitmap by produceState(initialValue = ObjectImageCache.peek(image, minSidePx), image, minSidePx) {
-        value = withContext(Dispatchers.IO) { ObjectImageCache.get(assets, image, minSidePx) }
+    // Keyed so a reused card slot never shows the previous photo while the new one decodes.
+    val bitmap = remember(image, minSidePx) { mutableStateOf(ObjectImageCache.peek(image, minSidePx)) }
+    LaunchedEffect(image, minSidePx) {
+        if (bitmap.value == null) {
+            bitmap.value = withContext(Dispatchers.IO) { ObjectImageCache.get(assets, image, minSidePx) }
+        }
     }
-    return bitmap
+    return bitmap.value
 }

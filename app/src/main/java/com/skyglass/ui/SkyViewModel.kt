@@ -884,6 +884,12 @@ class SkyViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(locationEnabled = locationSource.isLocationEnabled()) }
         if (locationJob != null || !locationSource.hasPermission()) return
         locationJob = viewModelScope.launch {
+            // Location can be switched from the Quick Settings shade without the activity pausing.
+            launch {
+                locationSource.enabledChanges().collect { enabled ->
+                    _uiState.update { it.copy(locationEnabled = enabled) }
+                }
+            }
             locationSource.updates().collect(::onLocation)
         }
     }

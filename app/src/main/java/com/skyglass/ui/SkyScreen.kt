@@ -69,6 +69,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.skyglass.R
 import com.skyglass.catalog.Bortle
 import com.skyglass.catalog.StarVisibility
+import com.skyglass.catalog.ViewingGuide
 import com.skyglass.render.NavInsets
 import com.skyglass.render.SkyRenderer
 import com.skyglass.render.SkyZoom
@@ -110,6 +111,8 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     var hasLocationPermission by remember { mutableStateOf(viewModel.hasLocationPermission()) }
     val selectedBody = state.selectedBody?.let { id -> state.bodies.firstOrNull { it.body == id } }
     val selectedMoon = state.selectedMoon?.let { id -> state.moons.firstOrNull { it.moon == id } }
+    // The naked-eye limit the viewing signs are worked out for: the slider if set, else the light-pollution map.
+    val viewingLimit = ViewingGuide.limitingMagnitude(state.limitingMagnitude, state.skyBrightness)
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -263,6 +266,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                     StarInfoCard(
                         selected = selected,
                         fact = state.objectFacts.forStar(selected.description.hr),
+                        viewing = ViewingGuide.forStar(selected.description.vmag, viewingLimit),
                         observer = state.observer,
                         julianDate = state.julianDate,
                         riseSet = state.riseSet,
@@ -282,6 +286,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                         selected = selected,
                         image = state.objectImages.forDeepSky(selected.obj.id),
                         fact = state.objectFacts.forDeepSky(selected.obj.id),
+                        viewing = ViewingGuide.forDeepSky(selected.obj, viewingLimit),
                         observer = state.observer,
                         julianDate = state.julianDate,
                         riseSet = state.riseSet,
@@ -318,6 +323,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                         image = state.objectImages.forBody(body.body),
                         moons = state.objectImages.moonsOf(body.body),
                         fact = state.objectFacts.forBody(body.body),
+                        viewing = ViewingGuide.forBody(body.body, body.vmag, viewingLimit),
                         observer = state.observer,
                         julianDate = state.julianDate,
                         riseSet = state.riseSet,
@@ -337,6 +343,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                         position = moon,
                         planet = state.bodies.firstOrNull { it.body == moon.moon.planet },
                         image = state.objectImages.forMoon(moon.moon),
+                        viewing = ViewingGuide.forPlanetMoon(moon.vmag, viewingLimit),
                         observer = state.observer,
                         julianDate = state.julianDate,
                         riseSet = state.riseSet,
@@ -375,6 +382,7 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
                         plan = state.tonight,
                         locationKnown = locationKnown,
                         skyBrightness = state.skyBrightness,
+                        viewingLimit = viewingLimit,
                         onSelect = { target ->
                             viewModel.navigateToTonight(target)
                             tonightOpen = false

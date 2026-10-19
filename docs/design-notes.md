@@ -217,6 +217,16 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 
   English only.
 
+## Viewing signs
+
+- **What:** each details card shows the four instruments (eye, 10×50 binoculars, a 90 mm and a 200 mm telescope). They are lit from the least one that shows the object upward, the one that shows more in blue, with a sentence about it in the details ("A small telescope shows its rings"). The Sun gets a solar-filter warning instead. Tonight rows show the least instrument's glyph. Glyphs are drawn on a `Canvas`, as in the top bar.
+- **The sky they are for** (`ViewingGuide.limitingMagnitude`): the faintest-stars slider if the user has moved it off "all", since it is their own judgement. Otherwise the light-pollution map's limit, else 6.5. Altitude, haze, the Moon and filters are ignored.
+- **Reach:** a star shows in an instrument if it is no fainter than NELM + 5 log₁₀(D / 7 mm) − 1. The −1 covers glass, real eyes and hand-held binoculars, giving +3.3, +4.5 and +6.3.
+- **Diffuse objects** must be 0.5 mag brighter than a star to be seen, and lose 0.5 mag per mag/arcmin² of surface brightness beyond 13 (`DeepSkyAppearance.surfaceBrightness`), so M33 and M101 need a darker sky than their magnitudes suggest. Calibrated against Bortle's class descriptions (M33 in classes 2 and 4, the bright globulars in 3, M31 and M44 in 7–8).
+- **Planets' moons** count 1 mag fainter for their planet's glare and never get the eye sign. The Moon is always naked-eye; meteor showers are eye-only.
+- **Beyond reach:** an object past the 200 mm telescope's reach gets a dimmed "beyond these instruments" sign rather than a lit large telescope.
+- **Closer looks** are per body or per deep-sky type, shown only when they need more than the least instrument.
+
 ## Not built
 
 - **A better planet theory (VSOP87)** for deep zoom, and **more labels when zoomed in** (every deep-sky object, named stars).
@@ -232,5 +242,6 @@ SharedPreferences `display_settings`, written at once (the slider when the drag 
 - **Search:** on-target confirmation, haptics, recent and favourite searches.
 - **Tonight:** planets that rise later in the night, moonlight's effect on the deep-sky list, minor showers (ZHR < 10, the Taurids' fireballs), per-shower drift rates, and a date picker for another night.
 - **An About / credits screen.**
+- **Viewing signs:** splitting double stars (the BSC has no separations), altitude and extinction, nebula filters (the Rosette and the Horsehead want one), and signs in search results.
 - **Constellation card:** boundaries in the chart, a larger chart, pronunciation, best season, and the deep-sky objects it contains.
 - **Deep-sky and Milky Way:** deep-sky distances, hiding deep-sky objects below the horizon, and a Milky Way brightness setting.

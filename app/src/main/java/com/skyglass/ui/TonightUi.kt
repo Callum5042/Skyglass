@@ -38,11 +38,14 @@ import com.skyglass.astro.RiseSetTimes
 import com.skyglass.astro.SkyPlacement
 import com.skyglass.catalog.Bortle
 import com.skyglass.catalog.Darkness
+import com.skyglass.catalog.Instrument
 import com.skyglass.catalog.SearchTarget
 import com.skyglass.catalog.SkyHeight
 import com.skyglass.catalog.Tonight
 import com.skyglass.catalog.TonightMoon
 import com.skyglass.catalog.TonightShower
+import com.skyglass.catalog.Viewing
+import com.skyglass.catalog.ViewingGuide
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -51,8 +54,8 @@ import kotlin.math.roundToInt
 private val TonightListMaxHeight = 440.dp
 private val MinTouchTarget = 48.dp
 
-/** One line of the list: what it is, a line about it, and where to look. */
-private class TonightRow(val target: SearchTarget, val title: String, val detail: String, val where: String)
+/** One line of the list: what it is, what to see it with, a line about it, and where to look. */
+private class TonightRow(val target: SearchTarget, val title: String, val viewing: Viewing, val detail: String, val where: String)
 
 /**
  * What is worth seeing tonight (see [Tonight]): when it is dark, then the Moon, the planets that are
@@ -63,12 +66,14 @@ private class TonightRow(val target: SearchTarget, val title: String, val detail
  * @param locationKnown false until the first fix, which the plan needs
  * @param skyBrightness the light-pollution map's sky brightness at the observer (mag/arcsec²), shown
  *   as a Bortle class under the darkness times; null hides the line
+ * @param viewingLimit the naked-eye limiting magnitude the viewing signs are for ([ViewingGuide.limitingMagnitude])
  */
 @Composable
 fun TonightPanel(
     plan: Tonight.Plan?,
     locationKnown: Boolean,
     skyBrightness: Double?,
+    viewingLimit: Double,
     onSelect: (SearchTarget) -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -122,15 +127,29 @@ fun TonightPanel(
             TonightRow(
                 SearchTarget.BodyTarget(planet.position.body),
                 stringResource(planet.position.body.nameRes()),
+                ViewingGuide.forBody(planet.position.body, planet.position.vmag, viewingLimit),
                 planet.setJd?.let { stringResource(R.string.tonight_sets, eventTimeText(it, plan.nowJd)) } ?: stringResource(R.string.tonight_up_all_night),
                 whereText(planet.placement),
             )
         }
         val showers = plan.showers.map { shower ->
-            TonightRow(SearchTarget.RadiantTarget(shower.shower.code), shower.shower.name, showerDetail(shower), whereText(shower.placement))
+            // Meteors streak across the whole sky, so binoculars would only narrow the view.
+            TonightRow(
+                SearchTarget.RadiantTarget(shower.shower.code),
+                shower.shower.name,
+                Viewing.Needs(Instrument.EYE),
+                showerDetail(shower),
+                whereText(shower.placement),
+            )
         }
         val deepSky = plan.deepSky.map { item ->
-            TonightRow(SearchTarget.DeepSkyTarget(item.obj.id), item.obj.title, stringResource(item.obj.type.nameRes()), whereText(item.placement))
+            TonightRow(
+                SearchTarget.DeepSkyTarget(item.obj.id),
+                item.obj.title,
+                ViewingGuide.forDeepSky(item.obj, viewingLimit),
+                stringResource(item.obj.type.nameRes()),
+                whereText(item.placement),
+            )
         }
         LazyColumn(modifier = Modifier.heightIn(max = TonightListMaxHeight).padding(bottom = 8.dp)) {
             rows(listOf(moon), onSelect)
@@ -170,7 +189,10 @@ private fun RowItem(row: TonightRow, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = row.title, color = CardTextColor, style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(text = row.title, color = CardTextColor, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f, fill = false))
+                ViewingGlyph(row.viewing)
+            }
             Text(text = row.detail, color = CardSecondaryTextColor, style = MaterialTheme.typography.bodySmall)
         }
         Text(
@@ -222,7 +244,13 @@ private fun moonRow(moon: TonightMoon, nowJd: Double): TonightRow {
         else -> stringResource(R.string.tonight_moon_down_all_night)
     }
     val where = if (up && moon.placement.altitudeDeg > 0) whereText(moon.placement) else stringResource(R.string.tonight_where_below)
-    return TonightRow(SearchTarget.BodyTarget(position.body), stringResource(R.string.body_moon), stringResource(R.string.tonight_detail_pair, phase, event), where)
+    return TonightRow(
+        SearchTarget.BodyTarget(position.body),
+        stringResource(R.string.body_moon),
+        ViewingGuide.forBody(position.body, position.vmag, ViewingGuide.DEFAULT_LIMITING_MAGNITUDE),
+        stringResource(R.string.tonight_detail_pair, phase, event),
+        where,
+    )
 }
 
 /**

@@ -78,6 +78,30 @@
     <string name="detail_label_moons">Moons</string>
     <string name="detail_did_you_know">Did you know?</string>
 
+    <string name="viewing_eye">Naked eye</string>
+    <string name="viewing_binoculars">Binoculars</string>
+    <string name="viewing_small_telescope">Small telescope</string>
+    <string name="viewing_large_telescope">Large telescope</string>
+    <string name="viewing_needs_eye">Visible to the naked eye from here</string>
+    <string name="viewing_needs_binoculars">Needs binoculars or a telescope from here</string>
+    <string name="viewing_needs_small_telescope">Needs a telescope from here</string>
+    <string name="viewing_needs_large_telescope">Needs a large telescope</string>
+    <string name="viewing_beyond">Beyond these instruments</string>
+    <string name="viewing_needs_beyond">Too faint for a 200 mm telescope from here</string>
+    <string name="viewing_sun_danger">Never look at it without a solar filter</string>
+    <string name="viewing_closer_binoculars">Binoculars show %1$s.</string>
+    <string name="viewing_closer_small_telescope">A small telescope shows %1$s.</string>
+    <string name="viewing_closer_large_telescope">A large telescope shows %1$s.</string>
+    <string name="viewing_detail_phase">its phase</string>
+    <string name="viewing_detail_craters">craters and seas</string>
+    <string name="viewing_detail_surface_markings">dark markings and a polar cap</string>
+    <string name="viewing_detail_moons">its four largest moons</string>
+    <string name="viewing_detail_rings">its rings</string>
+    <string name="viewing_detail_disc">a tiny disc</string>
+    <string name="viewing_detail_resolved_stars">its separate stars</string>
+    <string name="viewing_detail_ring_or_disc">its ring or disc</string>
+    <string name="viewing_detail_structure">its dust lanes or spiral arms</string>
+
     <string name="object_photo_description">Photo of %1$s</string>
     <string name="object_photo_credit">%1$s · %2$s</string>
     <string name="object_photo_close">Close photo</string>

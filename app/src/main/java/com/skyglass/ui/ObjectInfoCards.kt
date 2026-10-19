@@ -72,6 +72,7 @@ import com.skyglass.catalog.MoonImage
 import com.skyglass.catalog.ObjectFact
 import com.skyglass.catalog.ObjectImage
 import com.skyglass.catalog.StarDistance
+import com.skyglass.catalog.Viewing
 import com.skyglass.math.Vector3
 import com.skyglass.render.Observer
 import android.text.format.DateFormat
@@ -123,6 +124,7 @@ private val MinTouchTarget = 48.dp
 fun StarInfoCard(
     selected: SelectedStar,
     fact: ObjectFact?,
+    viewing: Viewing,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -153,6 +155,7 @@ fun StarInfoCard(
                 color = CardTextColor,
                 style = MaterialTheme.typography.bodyMedium,
             )
+            ViewingSignRow(viewing)
             PositionSummary(placement)
         },
         details = {
@@ -188,6 +191,7 @@ fun DeepSkyInfoCard(
     selected: SelectedDeepSky,
     image: ObjectImage?,
     fact: ObjectFact?,
+    viewing: Viewing,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -222,11 +226,13 @@ fun DeepSkyInfoCard(
                     color = CardTextColor,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                ViewingSignRow(viewing)
                 PositionSummary(placement)
             }
         },
         details = {
             fact?.let { FactText(it) }
+            CloserLookText(viewing)
             DetailRow(stringResource(R.string.detail_label_type), typeName)
             DetailRow(stringResource(R.string.detail_label_constellation), obj.constellation)
             DetailRow(stringResource(R.string.detail_label_size), deepSkySizeText(DeepSkySize.of(obj)))
@@ -373,6 +379,7 @@ fun BodyInfoCard(
     image: ObjectImage?,
     moons: List<MoonImage>,
     fact: ObjectFact?,
+    viewing: Viewing,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -413,11 +420,13 @@ fun BodyInfoCard(
                     color = CardTextColor,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                ViewingSignRow(viewing)
                 PositionSummary(placement)
             }
         },
         details = {
             fact?.let { FactText(it) }
+            CloserLookText(viewing)
             if (moons.isNotEmpty()) MoonGallery(moons, onOpen = { openPhoto = it })
             // Only the Moon and the inner planets show a phase worth reporting; the rest are always near full.
             if (position.body == SkyBody.MOON || position.body == SkyBody.MERCURY || position.body == SkyBody.VENUS) {
@@ -460,6 +469,7 @@ fun PlanetMoonInfoCard(
     position: PlanetMoonPosition,
     planet: BodyPosition?,
     image: ObjectImage?,
+    viewing: Viewing,
     observer: Observer?,
     julianDate: Double?,
     riseSet: RiseSetTimes?,
@@ -491,6 +501,7 @@ fun PlanetMoonInfoCard(
                     color = CardTextColor,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+                ViewingSignRow(viewing)
                 PositionSummary(placement)
             }
         },

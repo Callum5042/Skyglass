@@ -63,8 +63,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.skyglass.R
 import com.skyglass.catalog.Bortle
@@ -135,10 +138,15 @@ fun SkyScreen(viewModel: SkyViewModel = viewModel()) {
     BackHandler(enabled = tonightOpen) { tonightOpen = false }
     val locationKnown = state.observer != null
     val catalogueLoaded = state.starCount != null
-    LaunchedEffect(tonightOpen, locationKnown, catalogueLoaded) {
-        while (tonightOpen) {
-            viewModel.refreshTonight()
-            delay(TONIGHT_REFRESH_MS)
+    // Only while resumed: the composition outlives a backgrounded activity, and delay() keeps ticking.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(tonightOpen, locationKnown, catalogueLoaded, lifecycleOwner) {
+        if (!tonightOpen) return@LaunchedEffect
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                viewModel.refreshTonight()
+                delay(TONIGHT_REFRESH_MS)
+            }
         }
     }
     // The search and Tonight panels take the details card's place while open.
